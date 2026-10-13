@@ -41,7 +41,14 @@ def _catalog(s: Settings) -> dict[str, ProviderSpec | None]:
         if s.gemini_api_key
         else None,
         "openrouter": ProviderSpec(
-            "openrouter", "https://openrouter.ai/api/v1", s.openrouter_api_key, s.openrouter_model
+            "openrouter",
+            "https://openrouter.ai/api/v1",
+            s.openrouter_api_key,
+            s.openrouter_model,
+            # free OpenRouter models are mostly reasoning models that spend max_tokens thinking
+            extra_body={"reasoning": {"effort": s.openrouter_reasoning_effort}}
+            if s.openrouter_reasoning_effort
+            else None,
         )
         if s.openrouter_api_key
         else None,

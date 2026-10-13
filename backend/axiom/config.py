@@ -44,6 +44,7 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen3:8b"
     # Qwen3 etc. burn tokens on hidden reasoning; "none" disables it on Ollama ("" leaves the model default)
     ollama_reasoning_effort: str = "none"
+    openrouter_reasoning_effort: str = "low"  # "" sends nothing
     llm_chain: str = "groq,gemini,openrouter,ollama"  # fallback order; unconfigured ones are skipped
     llm_cache: str = "readwrite"  # off | readwrite | replay (replay = never call a provider; evals/CI)
     llm_cache_ttl_days: int = 7
