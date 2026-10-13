@@ -1,7 +1,0 @@
-project_id = "yxwdegyxirikgochhygi"
-
-[functions.stock-data]
-verify_jwt = false
-
-[functions.stock-news]
-verify_jwt = false
