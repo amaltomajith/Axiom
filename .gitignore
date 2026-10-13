@@ -43,3 +43,5 @@ backend/evals/results/
 
 # deep-research working notes (reports/ is kept)
 research_notes/
+
+.vercel
