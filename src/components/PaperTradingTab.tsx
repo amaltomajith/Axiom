@@ -1,142 +1,131 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Briefcase, Loader2, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { getTrades, addTrade, removeTrade, PaperTrade } from '@/lib/storage';
-import { fetchStockData } from '@/lib/api';
-import { Trash2, Loader2, ShoppingCart, Wallet } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Cell, List, ListRow } from '@/components/kit/List';
+import { ConfirmButton } from '@/components/kit/ConfirmButton';
+import { EmptyState } from '@/components/kit/EmptyState';
+import { SkeletonRows } from '@/components/kit/Skeleton';
+import { Section } from '@/components/kit/Surface';
+import { useToast } from '@/hooks/use-toast';
+import { api, ApiError } from '@/lib/api';
+import { money } from '@/lib/format';
+import type { PaperTrade } from '@/lib/types';
+import { cn } from '@/lib/utils';
 
-interface PaperTradingTabProps {
-  ticker: string;
-}
+const pnl = (t: PaperTrade, price: number | undefined): number => ((t.exit_price ?? price ?? t.entry_price) - t.entry_price) * t.quantity;
+const signed = (v: number) => `${v >= 0 ? '+' : ''}${money(v)}`;
 
-export function PaperTradingTab({ ticker }: PaperTradingTabProps) {
-  const [trades, setTrades] = useState<PaperTrade[]>([]);
+export function PaperTradingTab({ ticker }: { ticker: string }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const [quantity, setQuantity] = useState('10');
-  const [prices, setPrices] = useState<Record<string, number>>({});
-  const [loading, setLoading] = useState(false);
+  const { data: trades = [], isLoading } = useQuery({ queryKey: ['trades'], queryFn: api.trades });
 
-  useEffect(() => { setTrades(getTrades()); }, []);
+  const open = [...new Set(trades.filter(t => t.exit_price == null).map(t => t.ticker))];
+  const prices = useQueries({ queries: open.map(t => ({ queryKey: ['mark', t], queryFn: () => api.ohlcv(t, 5), staleTime: 5 * 60_000, retry: false })) });
+  const mark: Record<string, number | undefined> = {};
+  open.forEach((t, i) => {
+    const bars = prices[i]?.data?.bars;
+    mark[t] = bars?.[bars.length - 1]?.close;
+  });
 
-  useEffect(() => {
-    const tickers = [...new Set(trades.map(t => t.ticker))];
-    tickers.forEach(async (t) => {
-      if (prices[t]) return;
-      try {
-        const data = await fetchStockData(t, 5);
-        if (data.length > 0) setPrices(prev => ({ ...prev, [t]: data[data.length - 1].close }));
-      } catch { /* ignore */ }
-    });
-  }, [trades]);
-
-  const handleBuy = async () => {
-    setLoading(true);
-    try {
-      const data = await fetchStockData(ticker, 5);
-      const price = data.length > 0 ? data[data.length - 1].close : 0;
-      if (price > 0) {
-        addTrade({ ticker, entryPrice: price, quantity: parseInt(quantity) || 10, entryDate: new Date().toISOString().split('T')[0], type: 'BUY' });
-        setTrades(getTrades());
-        setPrices(prev => ({ ...prev, [ticker]: price }));
-      }
-    } catch { /* ignore */ }
-    setLoading(false);
-  };
-
-  const handleRemove = (id: string) => { removeTrade(id); setTrades(getTrades()); };
-
-  const totalPnL = trades.reduce((sum, t) => {
-    const current = prices[t.ticker] || t.entryPrice;
-    return sum + (current - t.entryPrice) * t.quantity * (t.type === 'BUY' ? 1 : -1);
-  }, 0);
+  const onError = (e: unknown) =>
+    toast({ title: e instanceof ApiError && e.status === 401 ? 'API token required' : 'That did not work', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' });
+  const refresh = () => qc.invalidateQueries({ queryKey: ['trades'] });
+  const qty = Math.max(1, parseInt(quantity) || 1);
+  const buy = useMutation({ mutationFn: () => api.buy(ticker, qty), onSuccess: refresh, onError });
+  const close = useMutation({ mutationFn: api.closeTrade, onSuccess: refresh, onError });
+  const del = useMutation({ mutationFn: api.deleteTrade, onSuccess: refresh, onError });
+  const total = trades.reduce((s, t) => s + pnl(t, mark[t.ticker]), 0);
 
   return (
-    <div className="space-y-5">
-      <div className="glass-card rounded-xl p-5">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <ShoppingCart className="h-4 w-4 text-primary" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold font-display">Paper Trade</h3>
-              <p className="text-xs text-muted-foreground">{ticker} — simulated orders</p>
-            </div>
+    <div className="space-y-6">
+      <Section title={`Buy ${ticker}`} description="Simulated. Fills at the last daily close, with no brokerage connection">
+        <form
+          className="flex flex-wrap items-end gap-3 border-t border-border px-5 py-4 sm:px-6"
+          onSubmit={e => {
+            e.preventDefault();
+            buy.mutate();
+          }}
+        >
+          <div className="w-32">
+            <label htmlFor="qty" className="mb-1.5 block text-caption text-muted-foreground">
+              Shares
+            </label>
+            <Input id="qty" name="shares" autoComplete="off" type="number" min={1} inputMode="numeric" value={quantity} onChange={e => setQuantity(e.target.value)} className="tnum" />
           </div>
-          <div className="flex items-center gap-2 ml-auto">
-            <Input
-              type="number"
-              value={quantity}
-              onChange={e => setQuantity(e.target.value)}
-              className="w-20 h-8 font-mono text-xs bg-muted/30 border-border/50 rounded-lg"
-              placeholder="Qty"
-            />
-            <Button
-              onClick={handleBuy}
-              disabled={loading}
-              size="sm"
-              className="font-mono text-xs gap-1.5 bg-success/10 text-success border border-success/20 hover:bg-success/20 shadow-none"
-            >
-              {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'BUY'}
-            </Button>
-          </div>
-        </div>
-      </div>
+          <Button type="submit" disabled={buy.isPending}>
+            {buy.isPending && <Loader2 className="animate-spin" />}
+            Buy {qty} {ticker}
+          </Button>
+        </form>
+      </Section>
 
-      <div className="glass-card rounded-xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border/50">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-4 w-4 text-muted-foreground" />
-            <h3 className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground font-semibold">Portfolio</h3>
+      <Section
+        title="Portfolio"
+        actions={<span className={cn('tnum text-h3', total >= 0 ? 'text-success' : 'text-destructive')}>{signed(total)}</span>}
+        description="Profit and loss across open and closed trades"
+      >
+        {isLoading ? (
+          <SkeletonRows rows={3} className="border-t border-border" />
+        ) : trades.length === 0 ? (
+          <div className="border-t border-border">
+            <EmptyState icon={Briefcase} title="No trades yet" description="Buy a position above, or approve an agent's plan on the Actions tab." />
           </div>
-          <span className={`font-mono text-sm font-bold ${totalPnL >= 0 ? 'text-success' : 'text-destructive'}`}>
-            P&L: {totalPnL >= 0 ? '+' : ''}${totalPnL.toFixed(2)}
-          </span>
-        </div>
-        <div>
-          {trades.length === 0 ? (
-            <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground font-mono">No open trades</p>
-              <p className="text-xs text-muted-foreground/60 mt-1">Buy a position to start tracking</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-border/30">
-              {trades.map((t, idx) => {
-                const current = prices[t.ticker] || t.entryPrice;
-                const pnl = (current - t.entryPrice) * t.quantity * (t.type === 'BUY' ? 1 : -1);
-                return (
-                  <motion.div
-                    key={t.id}
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="flex items-center justify-between px-5 py-3.5 hover:bg-muted/20 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <Badge variant="secondary" className="font-mono text-[10px]">{t.type}</Badge>
-                      <span className="font-mono font-bold text-sm">{t.ticker}</span>
-                      <span className="text-xs text-muted-foreground font-mono">{t.quantity} @ ${t.entryPrice.toFixed(2)}</span>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="text-right">
-                        <div className="font-mono text-[11px] text-muted-foreground">Now ${current.toFixed(2)}</div>
-                        <div className={`font-mono text-sm font-bold ${pnl >= 0 ? 'text-success' : 'text-destructive'}`}>
-                          {pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}
-                        </div>
-                      </div>
-                      <Button size="icon" variant="ghost" onClick={() => handleRemove(t.id)}
-                        className="text-muted-foreground hover:text-destructive h-7 w-7 rounded-lg">
-                        <Trash2 className="h-3 w-3" />
+        ) : (
+          <List
+            cols="grid-cols-[1fr_auto_auto] md:grid-cols-[5.5rem_1fr_6.5rem_6.5rem_7rem_auto]"
+            headers={[
+              { label: 'Ticker' },
+              { label: 'Position', hideBelow: 'md' },
+              { label: 'Entry', align: 'right', hideBelow: 'md' },
+              { label: 'Now', align: 'right', hideBelow: 'md' },
+              { label: 'Profit and loss', align: 'right' },
+              { label: '' },
+            ]}
+          >
+            {trades.map(t => {
+              const now = t.exit_price ?? mark[t.ticker];
+              const p = pnl(t, mark[t.ticker]);
+              return (
+                <ListRow key={t.id}>
+                  <Cell className="flex items-center gap-2">
+                    <span className="font-mono text-body font-medium">{t.ticker}</span>
+                    <Badge variant={t.exit_price != null ? 'neutral' : 'default'}>{t.exit_price != null ? 'Closed' : 'Open'}</Badge>
+                  </Cell>
+                  <Cell hideBelow="md" className="text-muted-foreground">
+                    {t.quantity} shares{t.thesis_id ? ', from an agent plan' : ''}
+                  </Cell>
+                  <Cell hideBelow="md" align="right" num>
+                    {money(t.entry_price)}
+                  </Cell>
+                  <Cell hideBelow="md" align="right" num>
+                    {money(now)}
+                  </Cell>
+                  <Cell align="right" num className={cn('font-medium', p >= 0 ? 'text-success' : 'text-destructive')}>
+                    {signed(p)}
+                  </Cell>
+                  <Cell align="right" className="flex items-center justify-end gap-1">
+                    {t.exit_price == null && (
+                      <Button variant="ghost" size="xs" onClick={() => close.mutate(t.id)}>
+                        Close
                       </Button>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
+                    )}
+                    <ConfirmButton title={`Delete this ${t.ticker} trade?`} description="It is removed from your paper portfolio and its profit and loss. This cannot be undone." confirmLabel="Delete trade" onConfirm={() => del.mutate(t.id)}>
+                      <Button variant="ghost" size="icon-sm" aria-label={`Delete ${t.ticker} trade`}>
+                        <Trash2 />
+                      </Button>
+                    </ConfirmButton>
+                  </Cell>
+                </ListRow>
+              );
+            })}
+          </List>
+        )}
+      </Section>
     </div>
   );
 }

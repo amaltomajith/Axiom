@@ -1,120 +1,128 @@
-import { supabase } from '@/integrations/supabase/client';
-import { OHLCVData } from './stockData';
-import { NewsItem } from './news';
+import type {
+  ActionPlan,
+  BacktestResponse,
+  ForecastResponse,
+  Health,
+  IndicatorsResponse,
+  NewsResponse,
+  OhlcvResponse,
+  PaperTrade,
+  RegimeResponse,
+  Scorecard,
+  Thesis,
+  WatchItem,
+} from './types';
 
-// --- In-memory cache with TTL ---
-interface CacheEntry<T> {
-  data: T;
-  timestamp: number;
-}
+export const API_BASE: string = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000';
+const TOKEN_KEY = 'axiom_token';
 
-const cache = new Map<string, CacheEntry<unknown>>();
-
-const CACHE_TTL = {
-  stockData: 5 * 60 * 1000,   // 5 minutes for price data
-  news: 15 * 60 * 1000,       // 15 minutes for news
-};
-
-function getCached<T>(key: string, ttl: number): T | null {
-  const entry = cache.get(key);
-  if (!entry) return null;
-  if (Date.now() - entry.timestamp > ttl) {
-    cache.delete(key);
-    return null;
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+  ) {
+    super(message);
+    this.name = 'ApiError';
   }
-  return entry.data as T;
 }
 
-function setCache<T>(key: string, data: T): void {
-  cache.set(key, { data, timestamp: Date.now() });
+export function getToken(): string {
+  try {
+    return localStorage.getItem(TOKEN_KEY) ?? '';
+  } catch {
+    return '';
+  }
 }
+
+export function setToken(token: string): void {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* storage unavailable (private mode): the token simply will not persist */
+  }
+}
+
+export function authHeaders(): Record<string, string> {
+  const t = getToken();
+  return t ? { Authorization: `Bearer ${t}` } : {};
+}
+
+// --- small in-memory TTL cache for GETs (market data is daily bars, so minutes of staleness are fine)
+const cache = new Map<string, { at: number; value: unknown }>();
+const TTL_MS = 5 * 60 * 1000;
 
 export function clearCache(ticker?: string): void {
-  if (ticker) {
-    for (const key of cache.keys()) {
-      if (key.includes(ticker)) cache.delete(key);
-    }
-  } else {
-    cache.clear();
+  if (!ticker) return cache.clear();
+  const needle = `/${ticker.toUpperCase()}/`;
+  for (const key of [...cache.keys()]) if (key.toUpperCase().includes(needle)) cache.delete(key);
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init?.headers ?? {}) },
+    });
+  } catch {
+    throw new ApiError(`Cannot reach the Axiom backend at ${API_BASE}. Is it running?`, 0);
   }
+  if (!res.ok) {
+    let msg = res.statusText;
+    try {
+      const body = await res.json();
+      msg = body.error ?? body.detail ?? msg;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(typeof msg === 'string' ? msg : JSON.stringify(msg), res.status);
+  }
+  return (await res.json()) as T;
 }
 
-// --- API functions with caching ---
-
-export async function fetchStockData(ticker: string, outputsize: number = 60): Promise<OHLCVData[]> {
-  const cacheKey = `stock:${ticker}:${outputsize}`;
-  const cached = getCached<OHLCVData[]>(cacheKey, CACHE_TTL.stockData);
-  if (cached) return cached;
-
-  const { data, error } = await supabase.functions.invoke('stock-data', {
-    body: { ticker, outputsize },
-  });
-
-  if (error) throw new Error(`Stock data error: ${error.message}`);
-  if (data?.error) throw new Error(data.error);
-
-  const result = data.data as OHLCVData[];
-  setCache(cacheKey, result);
-  return result;
+async function cachedGet<T>(path: string): Promise<T> {
+  const hit = cache.get(path);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
+  const value = await request<T>(path);
+  cache.set(path, { at: Date.now(), value });
+  return value;
 }
 
-export interface FinnhubNewsItem {
-  id: string;
-  headline: string;
-  summary: string;
-  source: string;
-  url: string;
-  date: string;
-  image: string;
-  category: string;
-}
+const enc = encodeURIComponent;
 
-export interface FinnhubSentiment {
-  buzz?: { articlesInLastWeek: number; buzz: number; weeklyAverage: number };
-  companyNewsScore?: number;
-  sectorAverageBullishPercent?: number;
-  sectorAverageNewsScore?: number;
-  sentiment?: { bearishPercent: number; bullishPercent: number };
-}
+export const api = {
+  health: () => request<Health>('/api/health'),
+  ohlcv: (t: string, bars = 90) => cachedGet<OhlcvResponse>(`/api/market/${enc(t)}/ohlcv?bars=${bars}`),
+  indicators: (t: string) => cachedGet<IndicatorsResponse>(`/api/quant/${enc(t)}/indicators`),
+  regime: (t: string) => cachedGet<RegimeResponse>(`/api/quant/${enc(t)}/regime`),
+  forecast: (t: string, horizon = 14) => cachedGet<ForecastResponse>(`/api/quant/${enc(t)}/forecast?horizon=${horizon}`),
+  backtest: (t: string, strategy: string) =>
+    cachedGet<BacktestResponse>(`/api/quant/${enc(t)}/backtest?strategy=${enc(strategy)}`),
+  walkForward: (t: string) => cachedGet<BacktestResponse>(`/api/quant/${enc(t)}/walk-forward`),
+  news: (t: string) => cachedGet<NewsResponse>(`/api/news/${enc(t)}`),
 
-export async function fetchStockNews(ticker: string): Promise<{ news: FinnhubNewsItem[]; sentiment: FinnhubSentiment | null }> {
-  const cacheKey = `news:${ticker}`;
-  const cached = getCached<{ news: FinnhubNewsItem[]; sentiment: FinnhubSentiment | null }>(cacheKey, CACHE_TTL.news);
-  if (cached) return cached;
+  scorecard: () => request<Scorecard>('/api/scorecard'),
+  theses: () => request<Thesis[]>('/api/theses?limit=100'),
+  scoreNow: () => request<{ scored: number; not_yet_due: number; failed: number }>('/api/score', { method: 'POST' }),
 
-  const { data, error } = await supabase.functions.invoke('stock-news', {
-    body: { ticker },
-  });
+  actions: () => request<ActionPlan[]>('/api/actions'),
+  approve: (id: string) => request<ActionPlan>(`/api/actions/${enc(id)}/approve`, { method: 'POST' }),
+  retry: (id: string) => request<ActionPlan>(`/api/actions/${enc(id)}/retry`, { method: 'POST' }),
+  reject: (id: string) => request<ActionPlan>(`/api/actions/${enc(id)}/reject`, { method: 'POST' }),
 
-  if (error) throw new Error(`News error: ${error.message}`);
-  if (data?.error) throw new Error(data.error);
+  watchlist: () => request<WatchItem[]>('/api/watchlist'),
+  watchAdd: (t: string) => request<WatchItem[]>(`/api/watchlist/${enc(t)}`, { method: 'PUT' }),
+  watchRemove: (t: string) => request<WatchItem[]>(`/api/watchlist/${enc(t)}`, { method: 'DELETE' }),
 
-  const result = { news: data.news, sentiment: data.sentiment };
-  setCache(cacheKey, result);
-  return result;
-}
+  trades: () => request<PaperTrade[]>('/api/trades'),
+  buy: (ticker: string, quantity: number) =>
+    request<{ id: string; entry_price: number }>('/api/trades', {
+      method: 'POST',
+      body: JSON.stringify({ ticker, quantity }),
+    }),
+  closeTrade: (id: string) => request<PaperTrade>(`/api/trades/${enc(id)}/close`, { method: 'POST' }),
+  deleteTrade: (id: string) => request<{ ok: boolean }>(`/api/trades/${enc(id)}`, { method: 'DELETE' }),
+};
 
-// Convert Finnhub news to app NewsItem format with simple sentiment scoring
-export function convertToNewsItems(finnhubNews: FinnhubNewsItem[]): NewsItem[] {
-  const positiveWords = ['beat', 'surge', 'upgrade', 'growth', 'record', 'buy', 'bullish', 'strong', 'gain', 'profit', 'rise', 'soar', 'boost', 'rally', 'outperform'];
-  const negativeWords = ['miss', 'fall', 'downgrade', 'decline', 'loss', 'sell', 'bearish', 'weak', 'drop', 'crash', 'cut', 'lawsuit', 'investigation', 'recall', 'concern'];
-
-  return finnhubNews.slice(0, 5).map((n) => {
-    const text = (n.headline + ' ' + (n.summary || '')).toLowerCase();
-    let score = 0;
-    positiveWords.forEach(w => { if (text.includes(w)) score += 0.15; });
-    negativeWords.forEach(w => { if (text.includes(w)) score -= 0.15; });
-    score = Math.max(-1, Math.min(1, score));
-
-    const sentiment: NewsItem['sentiment'] = score > 0.1 ? 'Positive' : score < -0.1 ? 'Negative' : 'Neutral';
-
-    return {
-      id: n.id,
-      headline: n.headline,
-      sentiment,
-      score: +score.toFixed(2),
-      date: n.date,
-      source: n.source,
-    };
-  });
-}
+export const POPULAR_TICKERS = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'AMZN', 'GOOGL'];

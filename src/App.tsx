@@ -1,27 +1,36 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Index from "./pages/Index";
-import NotFound from "./pages/NotFound";
+import { Suspense, lazy } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { ThemeProvider } from 'next-themes';
+import { Toaster } from '@/components/ui/toaster';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import NotFound from '@/pages/NotFound';
 
-const queryClient = new QueryClient();
+// Two routes, two chunks: the marketing page never pays for the app, and the app never pays for the marketing page.
+const Landing = lazy(() => import('@/pages/Landing'));
+const AppPage = lazy(() => import('@/pages/AppPage'));
+
+const queryClient = new QueryClient({ defaultOptions: { queries: { staleTime: 60_000, refetchOnWindowFocus: false } } });
+
+const Splash = () => <div className="min-h-[100dvh] bg-background" aria-hidden />;
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider delayDuration={200}>
+        <Toaster />
+        <BrowserRouter>
+          <Suspense fallback={<Splash />}>
+            <Routes>
+              <Route path="/" element={<Landing />} />
+              <Route path="/app" element={<AppPage />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </TooltipProvider>
+    </QueryClientProvider>
+  </ThemeProvider>
 );
 
 export default App;

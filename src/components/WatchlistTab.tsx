@@ -1,108 +1,103 @@
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Eye, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { getWatchlist, removeFromWatchlist, WatchlistItem } from '@/lib/storage';
-import { fetchStockData } from '@/lib/api';
-import { runPredictions, getConfidenceGrade, getPredictedDirection } from '@/lib/models';
-import { Trash2, TrendingUp, TrendingDown, Loader2, Eye } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Cell, List, ListRow } from '@/components/kit/List';
+import { EmptyState } from '@/components/kit/EmptyState';
+import { SkeletonRows } from '@/components/kit/Skeleton';
+import { Section } from '@/components/kit/Surface';
+import { useToast } from '@/hooks/use-toast';
+import { api, ApiError } from '@/lib/api';
+import { money, num, pct } from '@/lib/format';
+import { cn } from '@/lib/utils';
 
-interface WatchlistTabProps {
-  onSelectTicker: (ticker: string) => void;
-}
+const TREND = { uptrend: 'success', downtrend: 'destructive', sideways: 'warning' } as const;
 
-interface WatchlistItemData {
-  ticker: string;
-  price: number;
-  direction: 'up' | 'down';
-  grade: string;
-  loading: boolean;
-}
+export function WatchlistTab({ onSelectTicker }: { onSelectTicker: (ticker: string) => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data: items = [], isLoading } = useQuery({ queryKey: ['watchlist'], queryFn: api.watchlist });
 
-export function WatchlistTab({ onSelectTicker }: WatchlistTabProps) {
-  const [items, setItems] = useState<WatchlistItem[]>([]);
-  const [itemData, setItemData] = useState<Record<string, WatchlistItemData>>({});
+  const details = useQueries({
+    queries: items.map(i => ({
+      queryKey: ['watch-detail', i.ticker],
+      queryFn: async () => {
+        const [px, regime, ind] = await Promise.all([api.ohlcv(i.ticker, 5), api.regime(i.ticker), api.indicators(i.ticker)]);
+        return { px, regime, ind };
+      },
+      staleTime: 5 * 60_000,
+      retry: false,
+    })),
+  });
 
-  useEffect(() => {
-    const list = getWatchlist();
-    setItems(list);
-    list.forEach(item => loadTickerData(item.ticker));
-  }, []);
-
-  const loadTickerData = async (ticker: string) => {
-    setItemData(prev => ({ ...prev, [ticker]: { ticker, price: 0, direction: 'up', grade: '-', loading: true } }));
-    try {
-      const data = await fetchStockData(ticker, 60);
-      if (data.length > 0) {
-        const price = data[data.length - 1].close;
-        const preds = runPredictions(data, 14);
-        const direction = getPredictedDirection(preds, price);
-        const grade = getConfidenceGrade(preds);
-        setItemData(prev => ({ ...prev, [ticker]: { ticker, price, direction, grade, loading: false } }));
-      }
-    } catch {
-      setItemData(prev => ({ ...prev, [ticker]: { ticker, price: 0, direction: 'up', grade: '?', loading: false } }));
-    }
-  };
-
-  const handleRemove = (ticker: string) => { removeFromWatchlist(ticker); setItems(getWatchlist()); };
-
-  if (items.length === 0) {
-    return (
-      <div className="glass-card rounded-xl py-16 text-center">
-        <Eye className="h-8 w-8 text-muted-foreground/30 mx-auto mb-3" />
-        <p className="text-sm text-muted-foreground font-mono">No tickers in watchlist</p>
-        <p className="text-xs text-muted-foreground/60 mt-1">Click the ★ icon next to a ticker to add it</p>
-      </div>
-    );
-  }
+  const remove = useMutation({
+    mutationFn: api.watchRemove,
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['watchlist'] }),
+    onError: (e: unknown) => toast({ title: e instanceof ApiError && e.status === 401 ? 'API token required' : 'Could not remove', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' }),
+  });
 
   return (
-    <div className="space-y-2">
-      {items.map((item, idx) => {
-        const d = itemData[item.ticker];
-        return (
-          <motion.div
-            key={item.ticker}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: idx * 0.05 }}
-            className="glass-card rounded-xl hover:border-primary/20 transition-all duration-200 cursor-pointer"
-            onClick={() => onSelectTicker(item.ticker)}
-          >
-            <div className="flex items-center justify-between px-5 py-4">
-              <div className="flex items-center gap-4">
-                <span className="font-mono text-lg font-bold">{item.ticker}</span>
-                {d?.loading ? (
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                ) : (
-                  <span className="font-mono text-sm text-muted-foreground">${d?.price?.toFixed(2) || '—'}</span>
-                )}
-              </div>
-              <div className="flex items-center gap-3">
-                {d && !d.loading && (
-                  <>
-                    <div className={`flex items-center gap-1 ${d.direction === 'up' ? 'text-success' : 'text-destructive'}`}>
-                      {d.direction === 'up' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                    </div>
-                    <Badge className={`font-mono text-[10px] border ${
-                      d.grade === 'A' || d.grade === 'B' ? 'bg-success/10 text-success border-success/20' :
-                      d.grade === 'C' ? 'bg-warning/10 text-warning border-warning/20' :
-                      'bg-destructive/10 text-destructive border-destructive/20'
-                    } hover:opacity-100`}>
-                      {d.grade}
-                    </Badge>
-                  </>
-                )}
-                <Button size="icon" variant="ghost" onClick={e => { e.stopPropagation(); handleRemove(item.ticker); }}
-                  className="text-muted-foreground hover:text-destructive h-7 w-7 rounded-lg">
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        );
-      })}
-    </div>
+    <Section title="Watchlist" description="The daily briefing analyses this list">
+      {isLoading ? (
+        <SkeletonRows rows={3} className="border-t border-border" />
+      ) : items.length === 0 ? (
+        <div className="border-t border-border">
+          <EmptyState icon={Eye} title="Nothing watched yet" description="Use the star next to a ticker to add it here." />
+        </div>
+      ) : (
+        <List
+          cols="grid-cols-[1fr_auto_2rem] md:grid-cols-[6rem_1fr_6.5rem_5.5rem_4rem_2rem]"
+          headers={[
+            { label: 'Ticker' },
+            { label: 'Regime', hideBelow: 'md' },
+            { label: 'Price', align: 'right', hideBelow: 'md' },
+            { label: 'Day', align: 'right', hideBelow: 'md' },
+            { label: 'RSI', align: 'right', hideBelow: 'md' },
+            { label: '' },
+          ]}
+        >
+          {items.map((item, idx) => {
+            const q = details[idx];
+            const bars = q?.data?.px.bars ?? [];
+            const last = bars[bars.length - 1]?.close;
+            const prev = bars[bars.length - 2]?.close;
+            const chg = last && prev ? (last / prev - 1) * 100 : null;
+            const regime = q?.data?.regime;
+            return (
+              <ListRow key={item.ticker} onClick={() => onSelectTicker(item.ticker)} aria-label={`Open ${item.ticker}`}>
+                <Cell>
+                  <span className="font-mono text-body font-medium">{item.ticker}</span>
+                  <span className="tnum ml-3 text-small text-muted-foreground md:hidden">{money(last)}</span>
+                </Cell>
+                <Cell hideBelow="md" className="flex flex-wrap gap-1.5">
+                  {regime ? (
+                    <>
+                      <Badge variant={TREND[regime.trend as keyof typeof TREND] ?? 'neutral'}>{regime.trend}</Badge>
+                      <Badge>{`${regime.volatility} volatility`}</Badge>
+                    </>
+                  ) : q?.isError ? (
+                    <span className="text-caption text-destructive">No data</span>
+                  ) : null}
+                </Cell>
+                <Cell hideBelow="md" align="right" num>
+                  {money(last)}
+                </Cell>
+                <Cell hideBelow="md" align="right" num className={cn(chg != null && (chg >= 0 ? 'text-success' : 'text-destructive'))}>
+                  {chg == null ? 'n/a' : pct(chg, 2, true)}
+                </Cell>
+                <Cell hideBelow="md" align="right" num className="text-muted-foreground">
+                  {num(q?.data?.ind.values.rsi14, 0)}
+                </Cell>
+                <Cell align="right">
+                  <Button variant="ghost" size="icon-sm" onClick={e => { e.stopPropagation(); remove.mutate(item.ticker); }} aria-label={`Remove ${item.ticker}`}>
+                    <Trash2 />
+                  </Button>
+                </Cell>
+              </ListRow>
+            );
+          })}
+        </List>
+      )}
+    </Section>
   );
 }
