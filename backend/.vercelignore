@@ -1,0 +1,14 @@
+.venv
+.cache
+.env
+.env.*
+!.env.example
+tests
+evals
+scripts
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.mypy_cache
+*.db
+uv.lock
