@@ -110,6 +110,21 @@ async def test_short_retry_after_is_waited_out_once(monkeypatch):
 
 
 @respx.mock
+async def test_invalid_tool_call_sample_is_retried_once():
+    bad = {"error": {"message": "tool call validation failed", "type": "invalid_request_error", "code": "tool_use_failed"}}
+    route = respx.post("https://alpha.test/v1/chat/completions").mock(
+        side_effect=[httpx.Response(400, json=bad), httpx.Response(200, json=completion("ok on resample"))]
+    )
+    res = await LLMClient([A], cache_mode="off").chat(MSGS)
+    assert res.content == "ok on resample" and route.call_count == 2
+
+    route.side_effect = [httpx.Response(400, json=bad)] * 2
+    with pytest.raises(AllProvidersFailed) as e:
+        await LLMClient([A], cache_mode="off").chat(MSGS)
+    assert "400" in e.value.errors["alpha"]
+
+
+@respx.mock
 async def test_all_providers_failing_raises_with_per_provider_reasons():
     respx.post("https://alpha.test/v1/chat/completions").mock(
         return_value=httpx.Response(500, json={"error": {"message": "x"}})

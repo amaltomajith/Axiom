@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     # model ids change often: override via env (GROQ_MODEL=..., etc.)
     groq_model: str = "llama-3.3-70b-versatile"
     gemini_model: str = "gemini-2.5-flash"
-    openrouter_model: str = "meta-llama/llama-3.3-70b-instruct:free"
+    openrouter_model: str = "nvidia/nemotron-3.5-super-vl:free"
     cerebras_model: str = "gpt-oss-120b"
     ollama_model: str = "qwen3:8b"
     # Qwen3 etc. burn tokens on hidden reasoning; "none" disables it on Ollama ("" leaves the model default)

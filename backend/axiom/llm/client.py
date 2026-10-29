@@ -222,6 +222,10 @@ class LLMClient:
                         continue
                     self._cooldown[p.name] = time.monotonic() + (wait or COOLDOWN)
                     raise LLMError(f"HTTP {status} (rate limited/unavailable)") from e
+                # Groq rejects a sample that calls an unknown tool or emits malformed arguments; it is a bad
+                # draw, not a bad request, so resample once before failing over
+                if status == 400 and e.code == "tool_use_failed" and attempt == 1:
+                    continue
                 raise LLMError(f"HTTP {status}: {_short(e)}") from e
             except (APIConnectionError, APITimeoutError) as e:
                 if attempt == 1:
