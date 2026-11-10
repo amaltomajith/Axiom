@@ -3,9 +3,10 @@
     python -m data_platform seed                                  # synthetic SQLite for development
     python -m data_platform run --env dev                         # synthetic SQLite -> axiomdev_* datasets
     python -m data_platform run --env prod                        # Neon (read-only role) -> axiom_* datasets
-    python -m data_platform dryrun --env prod                     # bytes each staging/mart query would scan
+    python -m data_platform dryrun --env prod                     # bytes each staging/mart/dq query would scan
 
 Project: --project or AXIOM_GCP_PROJECT. Prod source: AXIOM_SOURCE_DATABASE_URL (backend/.env.data).
+Exit codes: 0 ok (warnings allowed), 3 a critical data-quality check failed and the marts were not rebuilt.
 """
 
 from __future__ import annotations
@@ -69,13 +70,17 @@ def main(argv: list[str] | None = None) -> int:
     wh, layout = BigQueryWarehouse(a.project, a.location), Layout(a.project, a.env)
 
     if a.cmd == "dryrun":
-        from .pipeline import models
+        from . import dq
+        from .models import models
 
-        out = {
-            f"{m.layer}.{m.name}": wh.dry_run_bytes(layout.render(m.sql))
-            for lr in ("staging", "mart")
-            for m in models(lr)
-        }
+        counts = {t: 0 for t in load_config().tables}
+        out = {}
+        for lr in ("staging", "mart", "dq"):
+            for m in models(lr):
+                if any(not wh.table_exists(layout.render(r)) for r in m.requires):
+                    continue
+                sql = dq.render(m, layout, counts) if lr == "dq" else layout.render(m.sql)
+                out[f"{lr}.{m.name}"] = wh.dry_run_bytes(sql)
         print(json.dumps({"dry_run_bytes": out}, indent=2))
         return 0
 
@@ -87,9 +92,17 @@ def main(argv: list[str] | None = None) -> int:
     rep = run(wh, layout, load_config(), db, source_label=label, with_prices=not a.no_prices)
     if a.report:
         a.report.write_text(
-            json.dumps({**asdict(rep), "reconciled": rep.reconciled}, indent=2, default=str), "utf-8"
+            json.dumps({**asdict(rep), "ok": rep.ok, "reconciled": rep.reconciled}, indent=2, default=str),
+            "utf-8",
         )
-    return 0 if rep.reconciled else 2
+    if not rep.ok:
+        print(
+            "PIPELINE STOPPED: critical data-quality checks failed; marts were not rebuilt:", file=sys.stderr
+        )
+        for f in rep.dq_failed_critical:
+            print(f"  - {f}", file=sys.stderr)
+        return 3
+    return 0
 
 
 if __name__ == "__main__":

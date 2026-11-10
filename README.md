@@ -119,8 +119,14 @@ uv run python -m data_platform dryrun --env prod --project <gcp-project>  # byte
   because they skip versions already loaded and rebuild staging with `QUALIFY ROW_NUMBER()`. Price tables use
   integer-range partitions on the day number, because the sandbox's 60-day partition expiry would silently drop
   older date partitions.
+- **Data-quality gate.** After staging, the SQL checks in
+  [`backend/data_platform/sql/dq/`](backend/data_platform/sql/dq) cover keys, accepted values, ranges, references,
+  freshness and source-vs-warehouse row counts. Results are appended to `mart.dq_results`. A failed critical check
+  stops the run before the marts and exits with code 3. Warnings are recorded only.
 - **Private.** Client IPs are redacted before loading. Price data is never published.
-- **Source access.** The prod source is a read-only Postgres role, given in `backend/.env.data` (gitignored).
+- **Access.** The prod source is a read-only Postgres role, given in `backend/.env.data` (gitignored). In BigQuery, a
+  loader and a dashboard-reader service account get per-dataset roles. See
+  [`docs/gcp-governance.md`](docs/gcp-governance.md).
 
 ## Free-tier strategy
 

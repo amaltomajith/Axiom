@@ -1,0 +1,88 @@
+# Column descriptions written to BigQuery after each build (layer -> table -> column -> description).
+# Covers every mart (what dashboards read) and the staging tables marts are built from.
+
+mart:
+  scorecard:
+    dimension: "What the row groups by: rating, horizon_days or conviction."
+    bucket: "The group's value, e.g. BUY, 20, or 'mid (0.4-0.7)'."
+    n_scored: "Scored theses in the group, including HOLD."
+    n_directional: "Scored non-HOLD calls in the group (the ones a hit rate can judge)."
+    hit_rate: "Share of directional calls whose price moved the called way over the horizon."
+    beat_benchmark_rate: "Share of directional calls whose excess return over SPY had the called sign."
+    mean_implied_p_up: "Average probability of 'up' the calls implied (0.5 +/- conviction/2). Calibration input."
+    realized_up_rate: "Share of directional calls where the price actually rose. Compare with mean_implied_p_up."
+    mean_brier: "Mean Brier score of directional calls (0 perfect, 0.25 = coin flip)."
+    brier_skill_vs_coinflip: "1 - mean_brier / 0.25. Above 0 beats a coin flip."
+    n_directional_total: "Directional calls scored overall. The table is empty below 30 (app rule)."
+  tool_latency_daily:
+    day: "UTC day of the tool call."
+    tool: "MCP tool name."
+    calls: "Tool calls that day."
+    errors: "Calls that returned an error."
+    error_rate: "errors / calls."
+    p50_ms: "Approximate median latency in milliseconds (APPROX_QUANTILES, 1% resolution)."
+    p90_ms: "Approximate 90th percentile latency in milliseconds."
+    p99_ms: "Approximate 99th percentile latency in milliseconds."
+    max_ms: "Slowest call that day in milliseconds."
+  llm_usage_daily:
+    day: "UTC calendar day; days without runs are present with zeros so the moving average is per day."
+    runs: "Analysis runs with at least one LLM call that day."
+    llm_calls: "LLM requests that day."
+    cached_calls: "Requests answered from Axiom's response cache (no provider call)."
+    prompt_tokens: "Prompt tokens reported by the providers."
+    completion_tokens: "Completion tokens reported by the providers."
+    total_tokens: "prompt_tokens + completion_tokens. Free tiers: tokens are the cost measure."
+    tokens_per_run: "total_tokens / runs."
+    total_tokens_7d_avg: "Average daily total_tokens over this day and the 6 before it."
+    runs_7d: "Runs over this day and the 6 before it."
+  price_indicators:
+    ticker: "Ticker symbol."
+    date: "Trading date."
+    date_key: "UNIX_DATE(date): the integer-range partition column. Filter on it to prune partitions."
+    close: "Closing price (provider-adjusted)."
+    sma20: "20-day simple moving average of close; NULL until 20 bars exist. Matches axiom/quant/indicators.py."
+    sma50: "50-day simple moving average of close."
+    sma200: "200-day simple moving average of close."
+    rsi14_cutler: "14-day RSI using simple means of gains and losses (Cutler). Axiom's app uses Wilder's RSI."
+    vol20_annualized: "Sample std of 20 daily log returns x sqrt(252). Matches axiom realized_vol()."
+  dq_results:
+    run_at: "When the pipeline run started (UTC)."
+    batch_id: "Pipeline run id; joins to raw._batch_id."
+    env: "prod (Neon source) or dev (synthetic source)."
+    check_name: "Check file in data_platform/sql/dq/."
+    table_name: "Table or column the result is about."
+    severity: "critical stops the pipeline before the marts; warn is recorded only."
+    passed: "Whether the check passed."
+    observed: "The measured value: bad rows, duplicates, minutes since load, or warehouse minus source rows."
+    detail: "Human-readable explanation of the observed value."
+
+staging:
+  theses:
+    id: "Thesis id (primary key)."
+    direction: "+1 for BUY/STRONG_BUY, -1 for SELL/STRONG_SELL, 0 for HOLD."
+    conviction: "Model conviction in [0, 1] after the policy caps."
+    status: "pending or scored, re-derived from outcomes."
+    issue_date: "Trading date the thesis was issued."
+    horizon_days: "Horizon in trading days."
+  outcomes:
+    thesis_id: "The scored thesis (primary key, references theses.id)."
+    ret_pct: "Price return over the horizon, percent."
+    excess_ret_pct: "ret_pct minus SPY's return over the same dates."
+    direction_hit: "1 if the price moved the called way, 0 if not, NULL for HOLD."
+    brier: "Brier score of the implied probability of 'up'; NULL for HOLD."
+  tool_calls:
+    run_id: "Analysis run (references runs.run_id)."
+    seq: "Event sequence number within the run; (run_id, seq) is the key."
+    tool: "MCP tool name."
+    ok: "False when the tool returned an error or timed out."
+    latency_ms: "Wall-clock time of the call as measured by the agent's toolbox."
+  llm_calls:
+    run_id: "Analysis run (references runs.run_id)."
+    seq: "Event sequence number within the run; (run_id, seq) is the key."
+    provider: "LLM provider (groq, openrouter, ollama, ...)."
+    prompt_tokens: "Prompt tokens as reported by the provider."
+    completion_tokens: "Completion tokens as reported by the provider."
+    cached: "True when served from Axiom's response cache."
+  price_bars:
+    date_key: "UNIX_DATE(date): integer-range partition column (30-day ranges)."
+    provider: "Which market-data source returned the bar (yfinance or twelvedata)."

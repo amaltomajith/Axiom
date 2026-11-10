@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import io
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -45,24 +46,31 @@ class Warehouse(Protocol):
     def dry_run_bytes(self, sql: str) -> int: ...
     def count(self, table: str) -> int: ...
     def max_watermark(self, table: str) -> float | None: ...
+    def describe_columns(self, table: str, docs: dict[str, str]) -> int: ...
     def versions_since(self, table: str, pk: list[str], since: float) -> set[tuple]: ...
 
 
 class BigQueryWarehouse:
-    def __init__(self, project: str, location: str = "US"):
+    def __init__(self, project: str, location: str = "US", credentials: Any = None):
         import os
 
         from google.cloud import bigquery
 
         os.environ.setdefault("GOOGLE_CLOUD_PROJECT", project)  # quiets google.auth's project lookup
         self.bq = bigquery
-        self.client = bigquery.Client(project=project, location=location)
+        self.client = bigquery.Client(project=project, location=location, credentials=credentials)
         self.project, self.location = project, location
 
     def ensure_dataset(self, dataset_id: str, description: str) -> None:
-        ds = self.bq.Dataset(f"{self.project}.{dataset_id}")
-        ds.location, ds.description, ds.labels = self.location, description, dict(DATASET_LABELS)
-        ds = self.client.create_dataset(ds, exists_ok=True)
+        """Look the dataset up first: the least-privilege loader may edit datasets but not create them."""
+        from google.api_core.exceptions import NotFound
+
+        try:
+            ds = self.client.get_dataset(f"{self.project}.{dataset_id}")
+        except NotFound:
+            ds = self.bq.Dataset(f"{self.project}.{dataset_id}")
+            ds.location, ds.description, ds.labels = self.location, description, dict(DATASET_LABELS)
+            ds = self.client.create_dataset(ds)
         if ds.labels != DATASET_LABELS or ds.description != description:
             ds.labels, ds.description = dict(DATASET_LABELS), description
             self.client.update_dataset(ds, ["labels", "description"])
@@ -166,6 +174,20 @@ class BigQueryWarehouse:
     def count(self, table):
         return int(self.client.get_table(table).num_rows or 0)
 
+    def describe_columns(self, table, docs):
+        t = self.client.get_table(table)
+        new = [
+            self.bq.SchemaField.from_api_repr({**f.to_api_repr(), "description": docs[f.name]})
+            if f.name in docs and f.description != docs[f.name]
+            else f
+            for f in t.schema
+        ]
+        changed = sum(a is not b for a, b in zip(new, t.schema, strict=True))
+        if changed:
+            t.schema = new
+            self.client.update_table(t, ["schema"])
+        return changed
+
     def max_watermark(self, table):
         if not self.table_exists(table):
             return None
@@ -183,11 +205,15 @@ class BigQueryWarehouse:
 @dataclass
 class FakeWarehouse:
     """In-memory stand-in for unit tests: load jobs and the few lookups the extractor runs. It cannot run
-    BigQuery SQL; the staging and mart SQL are covered by the integration test against real BigQuery."""
+    BigQuery SQL: `responder` answers queries (e.g. canned check results) and query_to_table only records
+    that a model was built. The SQL itself is covered by the integration tests against real BigQuery."""
 
     tables: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
     datasets: dict[str, str] = field(default_factory=dict)
     loads: list[LoadResult] = field(default_factory=list)
+    built: list[str] = field(default_factory=list)
+    column_docs: dict[str, dict[str, str]] = field(default_factory=dict)
+    responder: Callable[[str], list[dict[str, Any]]] | None = None
 
     def ensure_dataset(self, dataset_id, description):
         self.datasets[dataset_id] = description
@@ -218,16 +244,24 @@ class FakeWarehouse:
         return res
 
     def query(self, sql):
-        raise NotImplementedError("FakeWarehouse cannot run SQL")
+        if self.responder is None:
+            raise NotImplementedError("FakeWarehouse cannot run SQL; pass a responder")
+        return self.responder(sql)
 
     def query_to_table(self, sql, dest, **_):
-        raise NotImplementedError("FakeWarehouse cannot run SQL")
+        self.built.append(dest)
+        self.tables.setdefault(dest, [])
+        return LoadResult(dest, 0)
 
     def dry_run_bytes(self, sql):
         return 0
 
     def count(self, table):
         return len(self.tables.get(table, []))
+
+    def describe_columns(self, table, docs):
+        self.column_docs[table] = dict(docs)
+        return len(docs)
 
     def max_watermark(self, table):
         wms = [r["_wm"] for r in self.tables.get(table, [])]

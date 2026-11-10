@@ -128,7 +128,7 @@ def seed(path: Path, n_runs: int = 80, seed: int = 7) -> dict[str, int]:
                 c.execute("UPDATE theses SET status='scored' WHERE id=?", (tid,))
             if rating != "HOLD" and conviction >= 0.5:
                 decided = created + rng.uniform(60, 7200) if rng.random() < 0.8 else None
-                status = "pending" if decided is None else rng.choice(["executed", "rejected"])
+                status = "proposed" if decided is None else rng.choice(["executed", "rejected"])
                 plan = {
                     "id": f"ac{i:05d}",
                     "run_id": run_id,

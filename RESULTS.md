@@ -57,7 +57,8 @@ Tool-call traces and token counts are not tables. They live inside `runs.events_
 
 - Phase 0, baseline: DONE
 - Phase 1, BigQuery ELT warehouse: DONE (sandbox, no billing)
-- Phases 2 to 7: not started
+- Phase 2, data quality and governance: DONE (impersonation test of the service accounts not run, see section 5)
+- Phases 3 to 7: not started
 
 ## 3. Measurements
 
@@ -84,6 +85,24 @@ All on 2026-11-10, project `axiom-data-514305` (BigQuery sandbox, location US), 
 | Frontend tests after Phase 1 | 88 passed | tests | `npm test` |
 | MCP tools | 11 | tools | `@mcp.tool()` count |
 
+**Phase 2: data quality and governance** (2026-11-10)
+
+| Item | Number | Unit | Command / evidence |
+|---|---|---|---|
+| Check files / results per run | 10 files (8 critical, 2 warn) / 47 results | | `backend/data_platform/sql/dq/`, `dq_checked` log event |
+| Prod run with checks | 47/47 passed, marts built, 107 column descriptions written, 196.86 s, exit 0 | | `python -m data_platform run --env prod` (06:42Z) |
+| Dev run, first try | **exit 3**, marts not built: `accepted_values` on `actions.status`, 5 rows | rows | `python -m data_platform run --env dev` |
+| Dev run after reload | 46/47 passed (only the `source_freshness` warn: synthetic data ends weeks ago), 280 rows loaded, 178.44 s, exit 0 | | same, after dropping `axiomdev_*` (06:48Z) |
+| Positive-control test (real BigQuery) | 1 passed, 289.2 s. Clean data: only the freshness warn fails. With one bad row per rule: exactly 8 critical results and 1 warn fail, each with observed = 1. Load freshness fails when judged 3 h later. | | `AXIOM_BQ_INTEGRATION=1 pytest tests/test_data_quality_bq.py` |
+| Mart columns with a description | 48/48 across 5 mart tables, plus a description on every mart table | columns | schema read-back of `axiom_mart` |
+| PII scan of the warehouse | 0 rows matching IPv4/IPv6 or email patterns, in every table of all 6 datasets | rows | `REGEXP_CONTAINS(TO_JSON_STRING(row), ...)` per table |
+| Service accounts | 2 created: `axiom-elt-loader`, `axiom-dashboard-reader`; 0 keys | | `gcloud iam service-accounts create`, `... list` |
+| Grants, read back | both: project `roles/bigquery.jobUser`; loader `WRITER` (dataEditor) on all 6 datasets; reader `READER` (dataViewer) on the 2 mart datasets only | | `gcloud projects get-iam-policy`, `python -m data_platform.access` (run twice, no duplicate entries) |
+| Backend tests after Phase 2 | 178 passed, 6 skipped (4 Postgres, 2 opt-in BigQuery) | tests | `python -m pytest -q` |
+| Replay evals after Phase 2 | 21/21 (16/16 core) | cases | `python -m evals.run --mode replay ...` |
+
+**What the dev failure was.** I had changed the synthetic seed to write `proposed` rather than an invented `pending` status. Re-seeding rewrote 5 action rows without moving their watermark. The incremental load correctly skipped them as already loaded, so the warehouse kept the stale `pending` rows. The check stopped the run before the marts. Dropping the dev datasets and reloading fixed it. It's the same rule as Phase 1: a changed row must get a newer timestamp.
+
 **Sandbox capabilities, measured** (`python -m data_platform.sandbox_probe --project axiom-data-514305`, 05:50Z). Billing is off: `gcloud billing projects describe` says `billingEnabled: False`.
 
 | Feature | Result |
@@ -106,11 +125,14 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 ## 4. GCP services actually used
 
 - **BigQuery** (sandbox): datasets `axiom_raw`, `axiom_staging`, `axiom_mart` (prod) and `axiomdev_*` (synthetic). Load jobs, query jobs, dry runs. Evidence: the dataset listing printed after the integration test, and the run logs above.
-- **Cloud SDK / IAM sign-in**: `gcloud auth login` and application-default credentials as the project owner. No service accounts yet (Phase 2).
+- **Cloud SDK / IAM sign-in**: `gcloud auth login` and application-default credentials as the project owner. Owner credentials were used for setup and the runs above.
+- **IAM**: two service accounts and dataset-level grants (`docs/gcp-governance.md`). No keys.
+- **IAM Service Account Credentials API**: not enabled (see section 5).
 
 ## 5. Not done and why
 
-- Phases 2 to 7 not started yet.
+- Phases 3 to 7 not started yet.
+- **Service accounts not tested by impersonation.** Running a query as the reader (to show it can't read raw) needs the owner to grant themselves `roles/iam.serviceAccountTokenCreator` on the accounts. That's a privilege change, so it was left to the human. The grants were verified by reading the policies back. The pipeline runs above used the owner's credentials, not the loader account.
 - Cloud Run (Phase 6) and Cloud Scheduler need billing; the human chose the sandbox, so these will be "Not done".
 
 ## 6. Honest limits
@@ -118,6 +140,7 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 - **Prod data is tiny:** 5 runs, 0 scored outcomes. The scorecard mart is correctly empty for prod. All scorecard statistics above come from **synthetic** data and say nothing about Axiom's skill.
 - **Price data is private:** it comes from yfinance through Axiom's own fetcher, is kept in a private dataset only, and is never published.
 - **Sandbox tables expire after 60 days.** Each run rebuilds staging and marts, but raw history older than 60 days would be lost without billing.
+- **Data-quality checks are only as fresh as the watermark:** a source row changed without a newer timestamp is not reloaded. The checks catch it when the new value breaks a rule (as in dev), but not when it doesn't.
 - **RSI differs:** the SQL RSI is Cutler's (simple means), not Axiom's Wilder RSI, and is labelled `rsi14_cutler`.
 
 ## 7. Resume-safe sentences
