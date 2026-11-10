@@ -16,13 +16,13 @@ the code and check it. Paths are relative to `angular/src/app/`.
 | `catchError` (inside the `switchMap`) | Replaces an error with a fallback Observable. | It sits on the inner HTTP Observable, so a failed request becomes a `Search Failed` action and the effect keeps listening. Put on the outer stream, one error would complete the effect and search would stop working until reload. |
 | `of` | Emits the given values and completes. | Wraps the failure action, and the `Search Cleared` action for an empty query, without calling the API. |
 
-### Live run stream (`core/event-source.ts`, `run/state/run.effects.ts`)
+### Live run stream (`core/event-source.ts`, `run/state/run-stream.ts`, `run/state/run.effects.ts`)
 
 | Operator / API | What it does | Why |
 |---|---|---|
 | `new Observable(subscriber => { ...; return teardown })` | Builds an Observable by hand, returning a teardown function. | `EventSource` is callback-based. The wrapper opens it on subscribe and returns `() => source.close()`, so unsubscribing from the stream for any reason closes the HTTP connection. See section 4. |
 | `defer` | Creates the Observable lazily, once per subscription. | Each retry builds a **new** `EventSource`, not a reused, closed one. |
-| `tap` | Runs a side effect without changing values. | Records that `run_start` arrived, which decides whether a retry is allowed. |
+| `tap` | Runs a side effect without changing values. | Records that the first `trace` event (the server's `run_start`) arrived, which decides whether a retry is allowed. |
 | `retry({ count: 3, delay })` | Resubscribes after an error, up to 3 times, waiting for the Observable that `delay` returns. | Recovers from a dropped or refused connection while the API wakes up. `delay` returns `timer(backoffDelay(n))` (`core/backoff.ts`: 1 s, 2 s, 4 s, capped, with jitter) or `throwError` once the run has started. See the note below. `retryWhen` is deprecated in favour of this config form. |
 | `timer(ms)` | Emits once after `ms`. | The backoff wait inside `retry`. |
 | `throwError(() => err)` | An Observable that only errors. | Returned from `delay` to say "do not retry this one". |
@@ -30,9 +30,9 @@ the code and check it. Paths are relative to `angular/src/app/`.
 | `takeUntil(cancelled$)` | Completes when a notifier emits. | The Cancel button, or leaving the page, dispatches `Run Monitor Cancelled` and closes the stream. |
 | `merge` | Subscribes to several Observables and interleaves their values. | Merges the `Retrying` status actions (from a `Subject` fed by the `delay` callback) with the stream's own actions. |
 | `finalize` | Runs when the Observable completes, errors or is unsubscribed. | Completes that `Subject`, so the merged stream can complete. |
-| `switchMap` | As above. | Starting a new run while one is streaming cancels the old one, closing its `EventSource`, before opening the new one. |
+| `switchMap` | As above. | In `runStream$`, starting a new run while one is streaming cancels the old one, closing its `EventSource`, before opening the new one. |
 | `catchError` | As above. | After the retries are used up, or for a mid-run drop, it emits `Run Stream Failed` with a clear message. |
-| `takeUntilDestroyed()` | From `@angular/core/rxjs-interop`. Completes when the injection context's `DestroyRef` fires. | Used in `run/run-monitor.component.ts`, `watchlist/watchlist.component.ts` and `search/ticker-search.component.ts` for form `valueChanges` subscriptions that dispatch actions. No `ngOnDestroy` and no `Subscription` fields. |
+| `takeUntilDestroyed()` | From `@angular/core/rxjs-interop`. Completes when the injection context's `DestroyRef` fires. | Used for the two manual subscriptions: the search box's `valueChanges` that dispatch `Query Changed` (`search/ticker-search.component.ts`), and the deep-link `ticker` input that prefills the run form (`run/run-monitor.component.ts`, through `toObservable`). No `ngOnDestroy` and no `Subscription` fields. The watchlist needs neither: `toSignal` owns its subscription and ends it with the component. |
 
 **Why only retry before `run_start`.** The server cancels a run when the client disconnects (`finally:
 task.cancel()` in `backend/axiom/api/app.py`). A reconnect cannot resume a run. It starts a new one, and that
@@ -41,13 +41,19 @@ the cold start, where the API is waking or the first connection is refused. A dr
 "Connection lost; start the run again". Refusals such as the rate limit or a bad ticker arrive as SSE `error`
 events, not as transport errors, so they are never retried.
 
-### Price refresh (`watchlist/state/watchlist.effects.ts`, `refreshQuotes$`)
+One honest gap: the server counts a run against the caps before it sends `run_start`. If a connection reaches the
+server, passes the quota check and then drops before the first event arrives, the retry opens a new run and that
+retry costs a second quota hit. The window is small (the first event follows the check at once), and the retry
+count is capped at 3.
+
+### Price refresh (`core/page-visibility.ts`, then `refreshQuotes$` in `watchlist/state/watchlist.effects.ts`)
 
 | Operator | What it does | Why |
 |---|---|---|
-| `fromEvent(document, 'visibilitychange')` | An Observable of DOM events. | Notices when the tab is hidden or shown. `DOCUMENT` is injected, so tests pass a fake. |
-| `startWith(isVisible())` | Emits an initial value first. | `visibilitychange` only fires on change, so the effect needs the current state at startup. |
+| `fromEvent(doc, 'visibilitychange')`, `map` | An Observable of DOM events, mapped to `true` while visible. | `pageVisible(doc)` in `core/page-visibility.ts`. The effect injects it through the `PAGE_VISIBLE` token, so tests pass a marble stream instead of a document. |
+| `startWith(visible())` | Emits an initial value first. | `visibilitychange` only fires on change, so the effect needs the current state at startup. |
 | `distinctUntilChanged` | As above. | Ignores repeated "visible" events. |
+| `switchMap(() => visible$)` | As above. | The refresh starts only after the watchlist has loaded (`Load Succeeded`), and a reload restarts it. |
 | `switchMap(visible => visible ? timer(0, 5 min) : EMPTY)` | As above. | **This is the pause.** When the tab hides, `switchMap` unsubscribes from the timer and switches to `EMPTY`, which never emits. When it shows again, a fresh `timer(0, ...)` refreshes immediately, then every five minutes. A `filter(() => !document.hidden)` on a running timer would also skip work, but the timer would keep ticking and refresh up to five minutes late on return. |
 | `EMPTY` | Completes at once, emits nothing. | The paused state. |
 | `concatLatestFrom(() => store.select(selectTickers))` | From `@ngrx/operators`. Pairs each tick with the latest selector value, reading it lazily. | Each tick refreshes the tickers on the list *now*. `withLatestFrom` subscribes to the selector eagerly, when the effect is created. `concatLatestFrom` waits for the first tick, which is the NgRx-recommended form inside effects. |
@@ -55,12 +61,13 @@ events, not as transport errors, so they are never retried.
 | `from(tickers)` | Emits each array item. | One value per ticker. |
 | `mergeMap(fetch, 2)` | Runs up to 2 inner Observables at once. | Two summary requests in parallel: faster than `concatMap` (one at a time), but not a burst of 25 like unbounded `mergeMap`. Order does not matter, because each result updates its own ticker. |
 
-### Optimistic writes (`watchlist/state/watchlist.effects.ts`, `addTicker$` and `removeTicker$`)
+### Watchlist load and optimistic writes (`watchlist/state/watchlist.effects.ts`, `loadWatchlist$` and `writeWatchlist$`)
 
 | Operator | Why |
 |---|---|
-| `concatMap` | Writes go to the API one at a time, in the order they were made. Add NVDA then remove NVDA must reach the server in that order. `mergeMap` could let the DELETE land first, leaving NVDA on the server but gone from the screen. `switchMap` would abort the first write when a second arrives, even though the server may already have applied it. `exhaustMap` would drop the second click entirely. |
-| `map`, `catchError`, `of` | Success becomes `Add Succeeded`. An error becomes `Add Failed` (the rollback), caught inside the `concatMap` so the effect survives. |
+| `exhaustMap` (in `loadWatchlist$`) | A second `Opened` while the first load is in flight is ignored, not stacked. The load first waits for `ready$` (`take(1)`), so it never hits a sleeping API before the health check answers. |
+| `concatMap` (in `writeWatchlist$`) | Adds and removes go through **one** `concatMap` in one effect. Separate effects with a `concatMap` each would order adds among themselves and removes among themselves, but not an add against a remove. Writes go to the API one at a time, in the order they were made. Add NVDA then remove NVDA must reach the server in that order. `mergeMap` could let the DELETE land first, leaving NVDA on the server but gone from the screen. `switchMap` would abort the first write when a second arrives, even though the server may already have applied it. `exhaustMap` would drop the second click entirely. |
+| `map`, `catchError`, `of` | Success becomes `Add Succeeded` or `Remove Succeeded`. An error becomes `Add Failed` or `Remove Failed` (the rollback), caught inside the `concatMap` so the effect survives. |
 
 ### Shared data (`core/api-status.service.ts`)
 
@@ -78,8 +85,9 @@ events, not as transport errors, so they are never retried.
 | `startWith` | Form `valueChanges` do not emit their initial value, and `combineLatest` waits for every input to emit once. |
 | `map(visibleRows)` | `visibleRows` is `applyView` wrapped by NgRx's `defaultMemoize`, so identical inputs reuse the previous array. |
 
-Signals appear only at the edge: `toSignal(view$)` and `toSignal(store.select(...))` let templates read values
-without the `async` pipe. All async work stays in RxJS.
+Signals appear only at the edge. Plain selector reads use `store.selectSignal(...)`. Where an RxJS pipeline ends in
+the template, `toSignal(...)` takes over: the filtered rows in `watchlist/watchlist.component.ts` and the API status
+in `app.ts`. Templates never need the `async` pipe, and all async work stays in RxJS.
 
 ## 2. One action, end to end: adding a ticker
 
@@ -91,8 +99,8 @@ without the `async` pipe. All async work stays in RxJS.
    `{ ticker: 'NVDA', added_at, pending: true }`, unless NVDA is already listed.
 4. **Selectors** (`watchlist/state/watchlist.selectors.ts`): `selectRows` recomputes, because the entities changed.
    The table shows the row at once, dimmed, labelled "Adding".
-5. **Effect** (`addTicker$` in `watchlist/state/watchlist.effects.ts`): sees the same action after the reducer, and
-   `concatMap`s to `api.watchAdd('NVDA')`.
+5. **Effect** (`writeWatchlist$` in `watchlist/state/watchlist.effects.ts`): sees the same action after the reducer,
+   and `concatMap`s to `api.watchAdd('NVDA')`.
 6. **API** (`core/api.service.ts`, then the backend): `PUT /api/visitor/watchlist/NVDA` with the
    `X-Axiom-Visitor` header. The backend normalizes the ticker, checks the per-IP write limit and the 25-ticker
    cap, then upserts portably on SQLite or Postgres.
@@ -114,7 +122,7 @@ The UI changes before the server answers. Rolling back needs enough information 
 - **Remove.** The reducer moves the entity from the adapter into `removed[ticker]` before the request is sent. On
   failure, `removeFailed` puts `removed[ticker]` back with `adapter.addOne`, so position, `added_at` and the cached
   quote are kept. On success it deletes the stash and the cached quote.
-- **Ordering.** `concatMap` in the effects means the server sees writes in the order the user made them, so the
+- **Ordering.** The single `concatMap` in `writeWatchlist$` means the server sees writes in the order the user made them, so the
   final server state matches the final screen state.
 - **Visible message.** Every failure sets `notice`, rendered in a `role="status"` region with a Dismiss button. A
   rollback is never silent.
@@ -127,11 +135,11 @@ The UI changes before the server answers. Rolling back needs enough information 
 `core/event-source.ts`:
 
 ```ts
-export function fromEventSource(url: string, factory: EventSourceFactory, events: string[]): Observable<SseMessage> {
+export function fromEventSource(url: string, factory: EventSourceFactory, events: readonly string[]): Observable<SseMessage> {
   return new Observable<SseMessage>(subscriber => {
     const source = factory(url);
     const listeners = events.map(name => {
-      const fn = (e: MessageEvent) => subscriber.next({ event: name, data: e.data });
+      const fn = (e: MessageEvent) => subscriber.next({ event: name, data: String(e.data) });
       source.addEventListener(name, fn);
       return [name, fn] as const;
     });
@@ -169,7 +177,8 @@ export function fromEventSource(url: string, factory: EventSourceFactory, events
    used to skip a price tick while a refresh is still in flight.
 
 2. **How do you avoid memory leaks with subscriptions in Angular?**
-   Prefer no manual subscriptions: templates read `toSignal(...)` values, and effects are managed by NgRx. Where a
+   Prefer no manual subscriptions: templates read signals (`store.selectSignal`, `toSignal`), and effects are
+   managed by NgRx. Where a
    component must subscribe (form `valueChanges` that dispatch actions), `takeUntilDestroyed()` ends it when the
    component is destroyed. For resources outside Angular, like `EventSource`, the Observable's teardown closes the
    connection, and `core/event-source.spec.ts` proves it.
@@ -192,9 +201,10 @@ export function fromEventSource(url: string, factory: EventSourceFactory, events
 
 6. **How do you test time-based RxJS code?**
    With `TestScheduler.run`, which runs every scheduler, including `debounceTime`, `timer` and `retry` delays, in
-   virtual time and describes streams as marble strings. `search/state/search.effects.spec.ts` asserts that three
+   virtual time and describes streams as marble strings. `search/state/search.spec.ts` asserts that three
    fast keystrokes give one request 250 frames after the last one, and that a slow response is dropped when a
-   newer query arrives. `run/state/run.effects.spec.ts` asserts the backoff timing of the retries.
+   newer query arrives. `run/state/run.spec.ts` asserts the backoff timing of the retries, and that
+   a drop after `run_start` is not retried.
 
 7. **What is the difference between a cold and a hot Observable, and what does `shareReplay` do?**
    `HttpClient` Observables are cold: each subscriber triggers its own request. `shareReplay({ bufferSize: 1,
@@ -208,8 +218,9 @@ export function fromEventSource(url: string, factory: EventSourceFactory, events
    reducer restores state and sets a visible notice. See section 3.
 
 9. **Standalone components, signals and RxJS: how do they fit together here?**
-   Everything is standalone (`bootstrapApplication` with `app.config.ts` providers, no NgModules). RxJS does all
-   async work: HTTP, SSE, timers, debouncing. Signals are only the last step into the template (`toSignal`), which
+   Everything is standalone, with no NgModules. `main.ts` reads `config.json` (`loadApiBase()`), then calls
+   `bootstrapApplication` with the providers from `appConfig(apiBase)` in `app.config.ts`. RxJS does all
+   async work: HTTP, SSE, timers, debouncing. Signals are only the last step into the template (`store.selectSignal`, `toSignal`), which
    removes `async` pipes and works with zoneless change detection. Signals are not used for async flows, because
    they have no cancellation or backpressure.
 

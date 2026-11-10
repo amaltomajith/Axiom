@@ -36,12 +36,13 @@ the `watch` scope.
 angular/src/app/
   core/        config.ts (runtime config.json), api.service.ts (the only HttpClient user), visitor.ts,
                api-status.service.ts (wake check, shareReplay), event-source.ts (EventSource as an Observable),
-               backoff.ts, models.ts
-  watchlist/   state/ (actions, reducer with @ngrx/entity, selectors, effects), view.ts (filter and sort),
-               watchlist.component.ts
-  search/      state/ (actions, reducer, effects), ticker-search.component.ts
-  run/         state/ (actions, reducer, selectors, effects), steps.ts (pipeline steps from the trace),
-               run-monitor.component.ts
+               backoff.ts, page-visibility.ts (PAGE_VISIBLE token), format.ts, models.ts
+  watchlist/   state/ (actions, reducer with @ngrx/entity, selectors, effects, quote-refresh.ts tokens),
+               view.ts (filter and sort), ratings.ts, watchlist.component.ts
+  search/      state/ (actions, reducer with a derived selectPending, effects), ticker-search.component.ts
+  run/         state/ (actions, reducer, selectors, effects, run-stream.ts: one run as a stream of actions),
+               steps.ts (pipeline steps from the trace), run-monitor.component.ts
+  devtools.ts / devtools.dev.ts (store devtools, swapped in by the development build only)
   watch-page.component.ts, app.ts, app.routes.ts, app.config.ts
 ```
 
@@ -56,10 +57,12 @@ watchlist: EntityState<WatchItem> & {
   removed: Record<string, WatchItem>;     // optimistic removals waiting for the API (rollback source)
   loading: boolean; loaded: boolean; error: string | null; notice: Notice | null;
 }
-search: { query: string; results: TickerMatch[]; loading: boolean; error: string | null }
-run: { ticker: string | null; status: 'idle' | 'connecting' | 'retrying' | 'queued' | 'running' | 'done' | 'error';
+search: { query: string; answered: string | null; results: TickerMatch[]; error: string | null }
+        // pending is derived (query not yet answered), not stored
+run: { ticker: string | null;
+       status: 'idle' | 'connecting' | 'retrying' | 'queued' | 'running' | 'done' | 'error' | 'cancelled';
        events: TraceEvent[]; result: RunResult | null; error: string | null; errorKind: string | null;
-       attempt: number; retryInMs: number | null }
+       queueMessage: string | null; attempt: number; retryInMs: number | null }
 ```
 
 ## Actions (`createActionGroup`)

@@ -100,7 +100,7 @@ ten-minute verification checklist are in [`docs/deployment.md`](docs/deployment.
 
 [`angular/`](angular/) holds **Axiom Watch**, a second front end written in Angular, RxJS and NgRx: a per-visitor
 watchlist with prices and the last rating, search-as-you-type for tickers, and a live monitor for a research run's
-pipeline, streamed over `EventSource`. It is deployed as its own Vercel project (⟦VERIFY: live URL⟧) and ships
+pipeline, streamed over `EventSource`. It is deployed as its own Vercel project (https://axiom-watch.vercel.app) and ships
 a multi-stage Docker image (Node build, nginx serve). How it works and why each RxJS operator was chosen:
 [`angular/LEARNING.md`](angular/LEARNING.md). Run, test and deploy steps: [`angular/README.md`](angular/README.md).
 

@@ -3,7 +3,7 @@
 A watchlist and live run monitor for [Axiom](../README.md), written in Angular with RxJS and NgRx. It runs beside
 the React app and uses the same FastAPI backend.
 
-**Live:** ⟦VERIFY: live URL⟧
+**Live:** https://axiom-watch.vercel.app
 
 - **Watchlist.** Add and remove tickers. Each row shows the last close, 1-day and 1-month returns, and the last
   Axiom rating. Filter and sort the list. Changes show instantly and roll back, with a message, if the API refuses them.
@@ -19,7 +19,7 @@ How the RxJS and NgRx code works, and why, is in [`LEARNING.md`](LEARNING.md). E
 
 ## Run it
 
-Needs Node 22 and the Axiom API on `http://localhost:8000` (see the root README, `cd backend && uv run python -m axiom.api`).
+Needs Node 24 (or Node 22.22.3 and later; the Angular 22 CLI refuses older 22.x) and the Axiom API on `http://localhost:8000` (see the root README, `cd backend && uv run python -m axiom.api`).
 
 ```bash
 cd angular
@@ -34,11 +34,11 @@ app's origin in `CORS_ORIGINS` (`http://localhost:4200` is in the backend's defa
 
 ```bash
 npm run lint
-npm test             # Vitest through the Angular CLI, single run
+npm test -- --watch=false   # Vitest through the Angular CLI, single run
 npm run build
 ```
 
-⟦VERIFY: test file count and test count⟧ tests cover:
+116 tests in 12 files (all passing on 2026-11-10) cover:
 
 - reducers for every action, including both optimistic rollbacks
 - memoized selectors and the filter and sort view
@@ -62,7 +62,10 @@ docker run --rm -p 8080:80 -e AXIOM_API_BASE=http://localhost:8000 axiom-watch
 `AXIOM_API_BASE` is written into `config.json` when the container starts. Without it, the image uses the deployed
 API. Any free host port works: on a machine where 8080 is taken, use `-p 8081:80`.
 
-⟦VERIFY: image size and local docker run result⟧
+Checked locally on 2026-11-10: the image is 93.5 MB (`docker images`). With `-p 8081:80` and
+`AXIOM_API_BASE=http://localhost:8000/`, `/`, `/run/AAPL` and an unknown deep path all returned `index.html`,
+`/config.json` returned `{ "apiBase": "http://localhost:8000" }` (trailing slash stripped) and `/healthz` returned 200.
+The app in the container added a ticker and loaded its price against a local API.
 
 ## CI
 
@@ -79,7 +82,7 @@ The app is its own Vercel project with `angular/` as the root directory, on the 
 
 ```bash
 cd angular
-vercel link          # once: create or pick the project
+vercel link --project axiom-watch   # once: create or pick the project
 vercel --prod
 ```
 
