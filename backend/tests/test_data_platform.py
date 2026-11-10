@@ -159,3 +159,26 @@ def test_layout_renders_layer_placeholders():
         "SELECT * FROM `proj.axiomtest_raw.runs` JOIN `proj.axiomtest_mart.x`"
     )
     assert Layout("p", "prod").dataset("staging") == "axiom_staging"
+
+
+def test_a_partial_price_fetch_keeps_the_previous_window(tmp_path, monkeypatch):
+    from data_platform import prices
+    from data_platform.extract import Batch
+
+    seed(tmp_path / "s.db", n_runs=5)
+    db, cfg, layout, wh = Db(path=tmp_path / "s.db"), load_config(), Layout("p", "t"), FakeWarehouse()
+    bar = {"date": "2026-11-09", "open": 1.0, "high": 1.0, "low": 1.0, "close": 1.0, "volume": 1.0}
+
+    async def ok(tickers, bars):
+        return [{"ticker": t, **bar, "provider": "test"} for t in tickers], []
+
+    async def outage(tickers, bars):
+        return [], list(tickers)
+
+    monkeypatch.setattr(prices, "fetch_bars", ok)
+    first, _ = prices.load_prices(wh, layout, cfg, db, Batch.new("t"))
+    assert first.rows > 0
+    monkeypatch.setattr(prices, "fetch_bars", outage)
+    res, failed = prices.load_prices(wh, layout, cfg, db, Batch.new("t"))
+    assert failed and res.rows == 0
+    assert len(wh.tables[layout.fq("raw", "price_bars")]) == first.rows  # history survives the outage

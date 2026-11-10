@@ -1,0 +1,54 @@
+# Scheduled ELT: production Neon (read-only role) -> BigQuery, then data-quality checks, then marts.
+# Runs as the axiom-elt-loader service account through Workload Identity Federation: no key is stored.
+# A failed critical check exits 3, which fails this job, and GitHub emails the repo owner.
+# Logs are public (public repo): the pipeline logs counts and check results only, never rows or prices.
+name: Data platform
+
+on:
+  schedule:
+    - cron: "0 14 * * 1-5" # weekdays, an hour after the app's own daily cron (13:00 UTC)
+  workflow_dispatch:
+  push: # staging trigger while this lives on the feature branch; scheduled runs need the default branch
+    branches: [gcp-data-platform]
+    paths: [".github/workflows/data-platform.yml"]
+
+permissions:
+  contents: read
+  id-token: write # lets the job request a GitHub OIDC token for Workload Identity Federation
+
+concurrency:
+  group: data-platform-prod
+  cancel-in-progress: false # never cut a load in half
+
+jobs:
+  elt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults: { run: { working-directory: backend } }
+    env:
+      AXIOM_GCP_PROJECT: axiom-data-514305
+      AXIOM_SOURCE_DATABASE_URL: ${{ secrets.AXIOM_SOURCE_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/103613789288/locations/global/workloadIdentityPools/github/providers/axiom-repo
+          service_account: axiom-elt-loader@axiom-data-514305.iam.gserviceaccount.com
+      - uses: astral-sh/setup-uv@v5
+      - run: uv sync --extra data
+      - name: Run the pipeline
+        run: uv run python -m data_platform run --env prod --report "$RUNNER_TEMP/report.json"
+      - name: Summary
+        if: always()
+        run: |
+          [ -f "$RUNNER_TEMP/report.json" ] || exit 0
+          uv run python - "$RUNNER_TEMP/report.json" >> "$GITHUB_STEP_SUMMARY" <<'EOF'
+          import json, sys
+          r = json.load(open(sys.argv[1]))
+          print(f"### ELT {r['env']} {r['batch_id']}: {'OK' if r['ok'] else 'STOPPED'} in {r['seconds']} s")
+          print(f"- rows loaded: {sum(t['loaded'] for t in r['loads'])}, reconciled: {r['reconciled']}")
+          print(f"- critical failures: {r['dq_failed_critical'] or 'none'}")
+          print(f"- warnings: {r['dq_warnings'] or 'none'}")
+          print(f"- price fetch failures: {r['price_failures'] or 'none'}")
+          print(f"- tables built: {len(r['built'])}, skipped: {r['skipped'] or 'none'}")
+          EOF

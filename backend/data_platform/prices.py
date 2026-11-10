@@ -57,10 +57,17 @@ def load_prices(
     p = cfg.prices
     tickers = tickers_to_fetch(db, p["benchmark"])
     rows, failed = asyncio.run(fetch_bars(tickers, int(p["bars"])))
+    target = layout.fq("raw", "price_bars")
+    if failed and wh.table_exists(target):
+        # Replace the window only on a complete fetch: a provider outage must not wipe good history.
+        log.warning(
+            "price load skipped, previous window kept: %d of %d tickers failed", len(failed), len(tickers)
+        )
+        return LoadResult(target, 0), failed
     meta = {"_loaded_at": batch.loaded_at, "_source": batch.source, "_batch_id": batch.batch_id}
     schema = [*p["columns"].items(), *META_SCHEMA]
     res = wh.load_rows(
-        layout.fq("raw", "price_bars"),
+        target,
         [{**r, **meta} for r in rows],
         schema,
         truncate=True,
