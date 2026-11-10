@@ -11,7 +11,7 @@ on:
   push: # staging trigger while this lives on the feature branch (schedules only fire on the default branch);
     # remove it when merging to main
     branches: [gcp-data-platform]
-    paths: [".github/workflows/data-platform.yml"]
+    paths: [".github/workflows/data-platform.yml", "backend/data_platform/**"]
 
 permissions:
   contents: read
