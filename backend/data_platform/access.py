@@ -18,6 +18,20 @@ ENVS = ("prod", "dev")
 LAYERS = ("raw", "staging", "mart")
 
 
+def impersonated(sa_email: str):
+    """Short-lived credentials for a service account, minted from the caller's own credentials. No key file."""
+    import google.auth
+    from google.auth import impersonated_credentials
+
+    source, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    return impersonated_credentials.Credentials(
+        source_credentials=source,
+        target_principal=sa_email,
+        target_scopes=["https://www.googleapis.com/auth/cloud-platform"],
+        lifetime=3600,
+    )
+
+
 def wanted(project: str) -> dict[str, list[tuple[str, str]]]:
     from .config import Layout
 

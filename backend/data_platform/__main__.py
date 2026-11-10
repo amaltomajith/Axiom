@@ -5,7 +5,8 @@
     python -m data_platform run --env prod                        # Neon (read-only role) -> axiom_* datasets
     python -m data_platform dryrun --env prod                     # bytes each staging/mart/dq query would scan
 
-Project: --project or AXIOM_GCP_PROJECT. Prod source: AXIOM_SOURCE_DATABASE_URL (backend/.env.data).
+Project: --project or AXIOM_GCP_PROJECT. --impersonate <service-account email> runs as that account
+(least-privilege check; needs roles/iam.serviceAccountTokenCreator on it). Prod source: AXIOM_SOURCE_DATABASE_URL (backend/.env.data).
 Exit codes: 0 ok (warnings allowed), 3 a critical data-quality check failed and the marts were not rebuilt.
 """
 
@@ -50,6 +51,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--env", choices=["dev", "prod"], default="dev")
         p.add_argument("--project", default=os.environ.get("AXIOM_GCP_PROJECT"))
         p.add_argument("--location", default="US")
+        p.add_argument("--impersonate", metavar="SA_EMAIL", default=os.environ.get("AXIOM_IMPERSONATE"))
         if name == "run":
             p.add_argument("--no-prices", action="store_true")
             p.add_argument("--report", type=Path, help="write the run report as JSON here")
@@ -65,9 +67,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if not a.project:
         sys.exit("--project or AXIOM_GCP_PROJECT is required")
+    from .access import impersonated
     from .warehouse import BigQueryWarehouse
 
-    wh, layout = BigQueryWarehouse(a.project, a.location), Layout(a.project, a.env)
+    creds = impersonated(a.impersonate) if a.impersonate else None
+    wh, layout = BigQueryWarehouse(a.project, a.location, creds), Layout(a.project, a.env)
 
     if a.cmd == "dryrun":
         from . import dq

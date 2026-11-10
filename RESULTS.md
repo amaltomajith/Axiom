@@ -57,7 +57,7 @@ Tool-call traces and token counts are not tables. They live inside `runs.events_
 
 - Phase 0, baseline: DONE
 - Phase 1, BigQuery ELT warehouse: DONE (sandbox, no billing)
-- Phase 2, data quality and governance: DONE (impersonation test of the service accounts not run, see section 5)
+- Phase 2, data quality and governance: DONE
 - Phases 3 to 7: not started
 
 ## 3. Measurements
@@ -98,7 +98,9 @@ All on 2026-11-10, project `axiom-data-514305` (BigQuery sandbox, location US), 
 | PII scan of the warehouse | 0 rows matching IPv4/IPv6 or email patterns, in every table of all 6 datasets | rows | `REGEXP_CONTAINS(TO_JSON_STRING(row), ...)` per table |
 | Service accounts | 2 created: `axiom-elt-loader`, `axiom-dashboard-reader`; 0 keys | | `gcloud iam service-accounts create`, `... list` |
 | Grants, read back | both: project `roles/bigquery.jobUser`; loader `WRITER` (dataEditor) on all 6 datasets; reader `READER` (dataViewer) on the 2 mart datasets only | | `gcloud projects get-iam-policy`, `python -m data_platform.access` (run twice, no duplicate entries) |
-| Backend tests after Phase 2 | 178 passed, 6 skipped (4 Postgres, 2 opt-in BigQuery) | tests | `python -m pytest -q` |
+| Least privilege, acting as each account | 2 passed, 16.9 s. Reader: mart read allowed; raw read, staging read, table write and dataset create refused (403). Loader: raw read and dev-raw write and delete allowed; dataset create refused. | | `AXIOM_BQ_INTEGRATION=1 pytest tests/test_access_bq.py` (after the owner granted token-creator, 07:03Z) |
+| Dev pipeline run as the loader | exit 0, 46/47 checks (freshness warn only), 36 rows loaded, reconciled, 157.59 s. Job history: 39 jobs (6 load, 33 query), all by `axiom-elt-loader`, 0 errors. | | `python -m data_platform run --env dev --impersonate axiom-elt-loader@...` (07:04Z); `INFORMATION_SCHEMA.JOBS_BY_PROJECT` |
+| Backend tests after Phase 2 | 178 passed, 8 skipped (4 Postgres, 4 opt-in BigQuery) | tests | `python -m pytest -q` |
 | Replay evals after Phase 2 | 21/21 (16/16 core) | cases | `python -m evals.run --mode replay ...` |
 
 **What the dev failure was.** I had changed the synthetic seed to write `proposed` rather than an invented `pending` status. Re-seeding rewrote 5 action rows without moving their watermark. The incremental load correctly skipped them as already loaded, so the warehouse kept the stale `pending` rows. The check stopped the run before the marts. Dropping the dev datasets and reloading fixed it. It's the same rule as Phase 1: a changed row must get a newer timestamp.
@@ -127,12 +129,11 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 - **BigQuery** (sandbox): datasets `axiom_raw`, `axiom_staging`, `axiom_mart` (prod) and `axiomdev_*` (synthetic). Load jobs, query jobs, dry runs. Evidence: the dataset listing printed after the integration test, and the run logs above.
 - **Cloud SDK / IAM sign-in**: `gcloud auth login` and application-default credentials as the project owner. Owner credentials were used for setup and the runs above.
 - **IAM**: two service accounts and dataset-level grants (`docs/gcp-governance.md`). No keys.
-- **IAM Service Account Credentials API**: not enabled (see section 5).
+- **IAM Service Account Credentials API**: short-lived tokens for acting as the accounts (enabled by the owner).
 
 ## 5. Not done and why
 
 - Phases 3 to 7 not started yet.
-- **Service accounts not tested by impersonation.** Running a query as the reader (to show it can't read raw) needs the owner to grant themselves `roles/iam.serviceAccountTokenCreator` on the accounts. That's a privilege change, so it was left to the human. The grants were verified by reading the policies back. The pipeline runs above used the owner's credentials, not the loader account.
 - Cloud Run (Phase 6) and Cloud Scheduler need billing; the human chose the sandbox, so these will be "Not done".
 
 ## 6. Honest limits

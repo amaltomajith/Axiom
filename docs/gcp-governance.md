@@ -8,7 +8,7 @@ Project `axiom-data-514305`, BigQuery sandbox (no billing account), location US.
 |---|---|---|---|
 | `axiom-elt-loader@axiom-data-514305.iam.gserviceaccount.com` | `roles/bigquery.jobUser` | `roles/bigquery.dataEditor` on `axiom_raw`, `axiom_staging`, `axiom_mart`, `axiomdev_raw`, `axiomdev_staging`, `axiomdev_mart` | The scheduled ELT run: load jobs, staging and mart rebuilds, `dq_results`, column descriptions |
 | `axiom-dashboard-reader@axiom-data-514305.iam.gserviceaccount.com` | `roles/bigquery.jobUser` | `roles/bigquery.dataViewer` on `axiom_mart` and `axiomdev_mart` only | Dashboards. Cannot see raw or staging, cannot write anything |
-| The project owner (a personal Google account) | Owner | (inherited) | Setup, the opt-in integration tests, one-off runs |
+| The project owner (a personal Google account) | Owner, plus `roles/iam.serviceAccountTokenCreator` on the two accounts | (inherited) | Setup, the opt-in integration tests, and acting as either account for checks |
 
 Why these roles:
 - `jobUser` lets an identity run query and load jobs. It gives no access to any data by itself.
@@ -27,7 +27,9 @@ python -m data_platform.access --project axiom-data-514305   # dataset grants; s
 
 Re-run `data_platform.access` after dropping and recreating a dataset, because a new dataset starts with default access only.
 
-**Not verified:** the accounts have not been tested by impersonation (for example, a raw read attempted as the reader). That needs the owner to grant themselves `roles/iam.serviceAccountTokenCreator` on the accounts. The grants above were checked by reading back the project and dataset policies.
+**Verified by acting as each account.** The owner mints short-lived tokens for the accounts (no key files).
+- `pytest tests/test_access_bq.py` (opt-in): the reader can read the marts. It is refused on raw, on staging, on writing a table, and on creating a dataset. The loader can read raw and write to and delete from a dev raw table, but can't create a dataset.
+- `python -m data_platform run --env dev --impersonate axiom-elt-loader@...`: a full pipeline run as the loader succeeded. BigQuery's job history shows all 39 jobs ran as the loader, with 0 errors. So these roles are enough for the pipeline, not just narrow.
 
 ## Source database access
 
