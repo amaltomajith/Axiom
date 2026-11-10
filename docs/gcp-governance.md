@@ -35,7 +35,7 @@ Re-run `data_platform.access` after dropping and recreating a dataset, because a
 
 `.github/workflows/data-platform.yml` gets into GCP through Workload Identity Federation. No key is stored.
 - **Pool:** `github`. **Provider:** `axiom-repo`, issuer `https://token.actions.githubusercontent.com`.
-- **Provider condition:** GitHub's token must name repository id `1176257246` and owner id `158803696`. Ids still match after a rename, and a fork has a different id. `job_workflow_ref` must start with `amaltomajith/Axiom/.github/workflows/data-platform.yml@`, so no other workflow in the repo can use it. The event must be `schedule`, `workflow_dispatch` or `push`, so pull requests can't use it.
+- **Provider condition:** GitHub's token must name repository id `1176257246` and owner id `158803696`. Ids still match after a rename, and a fork has a different id. `job_workflow_ref` must start with `amaltomajith/Axiom/.github/workflows/data-platform.yml@`, so no other workflow in the repo can use it. The event must be `schedule` or `workflow_dispatch` (manual), so pushes and pull requests can't use it.
 - **Binding:** `roles/iam.workloadIdentityUser` on `axiom-elt-loader` for `principalSet://iam.googleapis.com/projects/103613789288/locations/global/workloadIdentityPools/github/attribute.repository_id/1176257246`. That's the only thing the workflow can become.
 
 ## Source database access

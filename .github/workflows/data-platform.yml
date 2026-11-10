@@ -7,11 +7,7 @@ name: Data platform
 on:
   schedule:
     - cron: "0 14 * * 1-5" # weekdays, an hour after the app's own daily cron (13:00 UTC)
-  workflow_dispatch:
-  push: # staging trigger while this lives on the feature branch (schedules only fire on the default branch);
-    # remove it when merging to main
-    branches: [gcp-data-platform]
-    paths: [".github/workflows/data-platform.yml", "backend/data_platform/**"]
+  workflow_dispatch: # manual run: gh workflow run data-platform.yml --ref main
 
 permissions:
   contents: read
