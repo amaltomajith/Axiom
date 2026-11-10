@@ -215,6 +215,18 @@ The deploy command it would use is sketched in `docs/gcp-architecture.md`. It wa
 | App code changed vs `main` | only `orchestrator.py` (+3/-1: the optional `today` parameter for the eval fix) | `git diff main --stat -- backend/axiom backend/evals/recordings` |
 | `requirements.txt` vs `uv.lock` | identical (new deps are in the optional `data` extra) | the CI diff command |
 
+**Merge and deploy** (2026-11-10)
+
+| Step | Result | Evidence |
+|---|---|---|
+| Merge | `gcp-data-platform` fast-forwarded into `main` (`972b1f5`). The branch-only push trigger was removed, and the federation provider now accepts only `schedule` and `workflow_dispatch` events. | `git merge --ff-only`; `gcloud ... providers describe` |
+| CI on `main` | success | GitHub run 42781046296 |
+| Pipeline run from `main` (manual dispatch) | success: 47/47 checks, 25 rows loaded, reconciled, 92.95 s | GitHub run 42781068087 |
+| Frontend production deploy (Vercel GitHub app) | success for `972b1f5` | Vercel deployment status |
+| API (`axiom-api`, deployed by Vercel CLI, not by git) | not redeployed. Its only change is the optional `today` parameter, which doesn't change behaviour. Live `/api/health` still reports `ok` on Postgres. | `curl https://axiom-api-three.vercel.app/api/health` |
+
+The weekday cron (14:00 UTC) is now live on `main`.
+
 **Sandbox capabilities, measured** (`python -m data_platform.sandbox_probe --project axiom-data-514305`, 05:50Z). Billing is off: `gcloud billing projects describe` says `billingEnabled: False`.
 
 | Feature | Result |
@@ -245,7 +257,7 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 
 ## 5. Not done and why
 
-- **The weekday cron hasn't fired yet.** GitHub only runs schedules from the default branch, and this branch isn't merged to `main` (merging redeploys the app, so that's the owner's call). The two real runs above used the branch's push trigger, which runs the same job.
+- **The weekday cron hasn't fired yet.** It's merged to `main` as of 2026-11-10. The first scheduled run is the next weekday at 14:00 UTC. Manual dispatch from `main` already succeeded.
 - Cloud Run (Phase 6), Cloud Scheduler and Secret Manager need billing; the human chose the sandbox, so these will be "Not done".
 
 ## 6. Honest limits
