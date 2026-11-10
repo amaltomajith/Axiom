@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import hmac
 import json
+import re
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
@@ -86,6 +87,18 @@ def require_token(request: Request) -> None:
             raise HTTPException(401, "Missing or invalid API token")
     elif build_executor(s).name != "dry_run":
         raise HTTPException(403, "AXIOM_API_TOKEN must be set before real actions can be approved")
+
+
+_VISITOR_RE = re.compile(r"^[A-Za-z0-9-]{16,64}$")
+
+
+def visitor_id(request: Request) -> str:
+    """The anonymous id the Angular app sends in `X-Axiom-Visitor`. It scopes a watchlist; it is not
+    authentication (anyone holding the id can edit that list)."""
+    v = request.headers.get("x-axiom-visitor", "")
+    if not _VISITOR_RE.match(v):
+        raise HTTPException(400, "X-Axiom-Visitor header must be 16 to 64 letters, digits or dashes")
+    return v
 
 
 class AnalyzeRequest(BaseModel):
@@ -208,6 +221,69 @@ def create_app() -> FastAPI:
         return await sec.get_filing_summary(ticker, risk_factors)
 
     # ----------------------------------------------------------- agent run (SSE)
+    async def run_events(ticker: str, equity: float):
+        """One analysis as SSE messages: `queued`, then `trace`s, then `result` or `error`. Shared by the POST
+        route (React, fetch) and the GET route (EventSource), so both behave the same."""
+        tracer = Tracer(queue=asyncio.Queue())
+        if run_gate.locked():
+            yield {
+                "event": "queued",
+                "data": json.dumps({"message": "Another analysis is running; you are queued."}),
+            }
+        task: asyncio.Task | None = None
+
+        async def work():
+            async with run_gate:
+                llm = app.state.llm_factory()
+                async with McpToolBox.inprocess() as box:
+                    return await run_pipeline(
+                        ticker, llm=llm, box=box, store=store(), equity=equity, tracer=tracer
+                    )
+
+        deadline = get_settings().run_deadline_seconds or None
+        task = asyncio.create_task(asyncio.wait_for(work(), deadline))
+        task.add_done_callback(lambda _t: tracer.close())
+        try:
+            while True:
+                ev = await tracer.queue.get()
+                if ev is None:
+                    break
+                yield {"event": "trace", "data": json.dumps(ev.to_dict())}
+            outcome = await task  # the queue closes before persistence finishes, so wait for the task itself
+            yield {
+                "event": "result",
+                "data": json.dumps(
+                    {
+                        **outcome.result.to_dict(),
+                        "thesis_id": outcome.thesis_id,
+                        "action": outcome.action.model_dump() if outcome.action else None,
+                        "action_reason": outcome.action_reason,
+                    }
+                ),
+            }
+        except TimeoutError:
+            yield {
+                "event": "error",
+                "data": json.dumps(
+                    {
+                        "error": f"The run hit this host's {deadline}s limit and was stopped.",
+                        "kind": "deadline",
+                    }
+                ),
+            }
+        except (AllProvidersFailed, BudgetExceeded, LLMError, market.DataError) as e:
+            yield {"event": "error", "data": json.dumps({"error": str(e), "kind": type(e).__name__})}
+        except asyncio.CancelledError:  # client disconnected
+            raise
+        except Exception as e:
+            yield {
+                "event": "error",
+                "data": json.dumps({"error": f"{type(e).__name__}: {e}"[:300], "kind": "internal"}),
+            }
+        finally:
+            if task and not task.done():
+                task.cancel()
+
     @app.post("/api/analyze")
     async def analyze_endpoint(body: AnalyzeRequest, request: Request):
         ticker = market.normalize_ticker(body.ticker)
@@ -216,71 +292,33 @@ def create_app() -> FastAPI:
         if refused is not None:
             msg, retry = refused
             raise HTTPException(429, msg, headers={"Retry-After": str(retry)})
+        return EventSourceResponse(run_events(ticker, body.equity), ping=15)
 
-        async def stream():
-            tracer = Tracer(queue=asyncio.Queue())
-            if run_gate.locked():
-                yield {
-                    "event": "queued",
-                    "data": json.dumps({"message": "Another analysis is running; you are queued."}),
-                }
-            task: asyncio.Task | None = None
+    @app.get("/api/analyze/stream")
+    async def analyze_stream(
+        request: Request,
+        ticker: str = Query(min_length=1, max_length=10),
+        equity: float = Query(100_000.0, gt=0, le=1e9),
+    ):
+        """The same run for `EventSource`, which can only GET and cannot read an error response's body. So
+        refusals are SSE `error` events with a `kind`, and a transport error always means "unreachable"."""
 
-            async def work():
-                async with run_gate:
-                    llm = app.state.llm_factory()
-                    async with McpToolBox.inprocess() as box:
-                        return await run_pipeline(
-                            ticker, llm=llm, box=box, store=store(), equity=body.equity, tracer=tracer
-                        )
+        async def refusal(error: str, kind: str, retry_after: int | None = None):
+            yield {
+                "event": "error",
+                "data": json.dumps({"error": error, "kind": kind, "retry_after": retry_after}),
+            }
 
-            deadline = get_settings().run_deadline_seconds or None
-            task = asyncio.create_task(asyncio.wait_for(work(), deadline))
-            task.add_done_callback(lambda _t: tracer.close())
-            try:
-                while True:
-                    ev = await tracer.queue.get()
-                    if ev is None:
-                        break
-                    yield {"event": "trace", "data": json.dumps(ev.to_dict())}
-                outcome = (
-                    await task
-                )  # the queue closes before persistence finishes, so wait for the task itself
-                yield {
-                    "event": "result",
-                    "data": json.dumps(
-                        {
-                            **outcome.result.to_dict(),
-                            "thesis_id": outcome.thesis_id,
-                            "action": outcome.action.model_dump() if outcome.action else None,
-                            "action_reason": outcome.action_reason,
-                        }
-                    ),
-                }
-            except TimeoutError:
-                yield {
-                    "event": "error",
-                    "data": json.dumps(
-                        {
-                            "error": f"The run hit this host's {deadline}s limit and was stopped.",
-                            "kind": "deadline",
-                        }
-                    ),
-                }
-            except (AllProvidersFailed, BudgetExceeded, LLMError, market.DataError) as e:
-                yield {"event": "error", "data": json.dumps({"error": str(e), "kind": type(e).__name__})}
-            except asyncio.CancelledError:  # client disconnected
-                raise
-            except Exception as e:
-                yield {
-                    "event": "error",
-                    "data": json.dumps({"error": f"{type(e).__name__}: {e}"[:300], "kind": "internal"}),
-                }
-            finally:
-                if task and not task.done():
-                    task.cancel()
-
-        return EventSourceResponse(stream(), ping=15)
+        try:
+            t = market.normalize_ticker(ticker)
+        except market.DataError as e:
+            return EventSourceResponse(refusal(str(e), "invalid_ticker"))
+        s = get_settings()
+        refused = check_quota(store(), client_ip(request), hourly=s.analyze_per_hour, daily=s.analyze_per_day)
+        if refused is not None:
+            msg, retry = refused
+            return EventSourceResponse(refusal(msg, "rate_limited", retry))
+        return EventSourceResponse(run_events(t, equity), ping=15)
 
     # ------------------------------------------------------------------- cron
     @app.api_route("/api/cron/daily", methods=["GET", "POST"], dependencies=[Depends(authorized_cron)])
@@ -370,6 +408,40 @@ def create_app() -> FastAPI:
     async def del_watch(ticker: str):
         store().watch_remove(market.normalize_ticker(ticker))
         return store().watchlist()
+
+    # ------------------------------------------------- per-visitor watchlist
+    @app.get("/api/tickers/search")
+    async def ticker_search(q: str = Query(min_length=1, max_length=40), limit: int = Query(8, ge=1, le=20)):
+        return await sec.search_tickers(q, limit)
+
+    @app.get("/api/visitor/watchlist")
+    async def visitor_list(visitor: str = Depends(visitor_id)):
+        return store().visitor_watchlist(visitor)
+
+    def _watch_write(request: Request) -> None:
+        bucket = datetime.now(UTC).strftime("%Y%m%d%H")
+        if not store().hit(f"watch:{client_ip(request)}", bucket, get_settings().watch_writes_per_hour):
+            raise HTTPException(
+                429,
+                "Too many watchlist changes; try again later.",
+                headers={"Retry-After": str(_seconds_to_next("hour"))},
+            )
+
+    @app.put("/api/visitor/watchlist/{ticker}")
+    async def visitor_add(ticker: str, request: Request, visitor: str = Depends(visitor_id)):
+        t = market.normalize_ticker(ticker)
+        _watch_write(request)
+        cap = get_settings().visitor_watchlist_max
+        if not store().visitor_watch_add(visitor, t, cap):
+            raise HTTPException(409, f"Your watchlist is full ({cap} tickers). Remove one first.")
+        return store().visitor_watchlist(visitor)
+
+    @app.delete("/api/visitor/watchlist/{ticker}")
+    async def visitor_remove(ticker: str, request: Request, visitor: str = Depends(visitor_id)):
+        t = market.normalize_ticker(ticker)
+        _watch_write(request)
+        store().visitor_watch_remove(visitor, t)
+        return store().visitor_watchlist(visitor)
 
     @app.get("/api/trades")
     async def get_trades():

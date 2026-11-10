@@ -1,0 +1,90 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  color: inherit;
+  text-decoration: none;
+}
+
+.mark {
+  width: 1.125rem;
+  height: 1.125rem;
+  border-radius: 6px;
+  background: hsl(var(--primary));
+}
+
+.api {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: hsl(var(--muted-foreground));
+}
+
+[data-status='ready'] .dot {
+  background: hsl(var(--success));
+}
+
+[data-status='waking'] .dot {
+  background: hsl(var(--warning));
+}
+
+[data-status='unreachable'] .dot {
+  background: hsl(var(--destructive));
+}
+
+.banner {
+  margin: 1rem 1rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-inner);
+  border: 1px solid hsl(var(--warning) / 0.4);
+  background: hsl(var(--warning) / 0.08);
+  font-size: var(--text-small);
+
+  &.error {
+    border-color: hsl(var(--destructive) / 0.4);
+    background: hsl(var(--destructive) / 0.08);
+  }
+}
+
+main {
+  flex: 1;
+  width: 100%;
+  max-width: 76rem;
+  margin: 0 auto;
+  padding: 1.25rem 1rem 2rem;
+}
+
+.foot {
+  padding: 1rem;
+  text-align: center;
+  border-top: 1px solid hsl(var(--border));
+}

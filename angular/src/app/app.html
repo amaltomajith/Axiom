@@ -1,0 +1,34 @@
+<header class="bar">
+  <a routerLink="/" class="brand" aria-label="Axiom Watch, home">
+    <span class="mark" aria-hidden="true"></span>
+    <span>Axiom <span class="muted">Watch</span></span>
+  </a>
+  <p class="api small" role="status" [attr.data-status]="apiStatus()">
+    <span class="dot" aria-hidden="true"></span>
+    @switch (apiStatus()) {
+      @case ('checking') { Connecting to the API }
+      @case ('waking') { Waking up the API }
+      @case ('ready') { API ready }
+      @case ('unreachable') { API unreachable }
+    }
+  </p>
+</header>
+
+@if (apiStatus() === 'waking') {
+  <div class="banner" role="note">
+    The API runs on free serverless hosting, so the first request after a quiet spell can take a few seconds. It is
+    starting up; nothing is wrong.
+  </div>
+} @else if (apiStatus() === 'unreachable') {
+  <div class="banner error" role="alert">
+    The Axiom API did not answer after several tries. It may be down for a moment; reload the page to try again.
+  </div>
+}
+
+<main>
+  <router-outlet />
+</main>
+
+<footer class="foot caption muted">
+  Research only, not financial advice. Prices are daily bars from free market data.
+</footer>

@@ -96,6 +96,14 @@ Free tiers, no card: Vercel (static frontend + Python function), Neon Postgres, 
 the daily briefing. A Dockerfile covers Cloud Run if Vercel's limits get in the way. Full steps, the env table and a
 ten-minute verification checklist are in [`docs/deployment.md`](docs/deployment.md).
 
+## Angular front end
+
+[`angular/`](angular/) holds **Axiom Watch**, a second front end written in Angular, RxJS and NgRx: a per-visitor
+watchlist with prices and the last rating, search-as-you-type for tickers, and a live monitor for a research run's
+pipeline, streamed over `EventSource`. It is deployed as its own Vercel project (⟦VERIFY: live URL⟧) and ships
+a multi-stage Docker image (Node build, nginx serve). How it works and why each RxJS operator was chosen:
+[`angular/LEARNING.md`](angular/LEARNING.md). Run, test and deploy steps: [`angular/README.md`](angular/README.md).
+
 ## Data platform
 
 A BigQuery warehouse built *beside* the agents (it never calls an LLM or touches prompts and tools). It runs in the
@@ -161,6 +169,7 @@ Free tiers fail with `429`s rather than bills, and the real limit is usually tok
 
 ```
 src/                 React app (tabs: Analyze, Backtest, Watchlist, Paper trade, Scorecard, Actions)
+angular/             Axiom Watch: Angular + RxJS + NgRx watchlist and live run monitor
 backend/axiom/
   quant/             indicators, regime, walk-forward backtester, forecast cone, risk (pure, tested)
   data/              market (Twelve Data/yfinance), news, SEC EDGAR, cache, rate limits

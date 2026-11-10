@@ -50,19 +50,49 @@ async def _get_json(url: str) -> Any:
     return r.json()
 
 
-async def ticker_to_cik(ticker: str) -> tuple[str, str]:
-    """Return (10-digit zero-padded CIK, company name)."""
-    t = normalize_ticker(ticker)
+async def _ticker_map() -> dict[str, list]:
+    """TICKER -> [cik, company name], from SEC's list of every ticker with filings (cached for a week)."""
     cache = get_cache()
     mapping = cache.get("sec:tickers")
     if mapping is None:
         raw = await _get_json("https://www.sec.gov/files/company_tickers.json")
         mapping = {v["ticker"].upper(): [v["cik_str"], v["title"]] for v in raw.values()}
         cache.set("sec:tickers", mapping, TICKER_MAP_TTL)
+    return mapping
+
+
+async def ticker_to_cik(ticker: str) -> tuple[str, str]:
+    """Return (10-digit zero-padded CIK, company name)."""
+    t = normalize_ticker(ticker)
+    mapping = await _ticker_map()
     if t not in mapping:
         raise DataError(f"{t} not found in SEC ticker list (ETFs/foreign issuers may be absent).")
     cik, name = mapping[t]
     return f"{int(cik):010d}", name
+
+
+async def search_tickers(query: str, limit: int = 8) -> list[dict]:
+    """Rank SEC tickers for a search box: exact ticker, ticker prefix, a word of the name starting with the
+    query, then the query anywhere in the name. Ties go to the shorter ticker, then alphabetical."""
+    q = query.strip().upper()
+    if not q:
+        return []
+    scored = []
+    for ticker, (_cik, name) in (await _ticker_map()).items():
+        title = str(name).upper()
+        if ticker == q:
+            rank = 0
+        elif ticker.startswith(q):
+            rank = 1
+        elif any(w.startswith(q) for w in re.split(r"[^A-Z0-9]+", title)):
+            rank = 2
+        elif q in title:
+            rank = 3
+        else:
+            continue
+        scored.append((rank, len(ticker), ticker, name))
+    scored.sort()
+    return [{"ticker": t, "name": n} for _r, _l, t, n in scored[:limit]]
 
 
 def _annual_series(facts: dict, concepts: list[tuple[str, str]]) -> list[dict]:

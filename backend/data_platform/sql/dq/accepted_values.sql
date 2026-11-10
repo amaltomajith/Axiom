@@ -17,5 +17,6 @@ FROM (
   FROM `${staging}.outcomes`
   UNION ALL SELECT 'paper_trades.side', 'long|short', COUNTIF(side IS NULL OR side NOT IN ('long', 'short'))
   FROM `${staging}.paper_trades`
-  UNION ALL SELECT 'usage.scope', 'ip|global', COUNTIF(scope NOT IN ('ip', 'global')) FROM `${staging}.usage`
+  UNION ALL SELECT 'usage.scope', 'ip|global|watch', COUNTIF(scope NOT IN ('ip', 'global', 'watch'))
+  FROM `${staging}.usage`
 )

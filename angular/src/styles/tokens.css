@@ -1,0 +1,85 @@
+/*
+ * Axiom design tokens, copied from the React app (src/index.css) so both front ends share one palette.
+ * HSL triplets, used as hsl(var(--name)). Every text/background pair is checked for WCAG AA by
+ * src/app/guardrails.spec.ts, in both themes.
+ */
+:root {
+  color-scheme: light;
+  --background: 220 20% 98%;
+  --foreground: 222 24% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 24% 11%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 24% 11%;
+  --primary: 201 96% 34%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 16% 95%;
+  --secondary-foreground: 222 24% 11%;
+  --muted: 220 16% 95%;
+  --muted-foreground: 220 9% 38%;
+  --accent: 220 16% 94%;
+  --accent-foreground: 222 24% 11%;
+  --destructive: 0 70% 45%;
+  --destructive-foreground: 0 0% 100%;
+  --success: 152 60% 30%;
+  --success-foreground: 0 0% 100%;
+  --warning: 31 95% 27%;
+  --warning-foreground: 0 0% 100%;
+  --border: 220 13% 90%;
+  --input: 220 13% 84%;
+  --ring: 201 96% 34%;
+  --radius: 0.625rem;
+  --chart-grid: 220 13% 90%;
+  --chart-axis: 220 9% 42%;
+  --chart-line: 222 24% 11%;
+  --chart-accent: 201 96% 34%;
+  --chart-benchmark: 220 9% 55%;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --background: 222 22% 7%;
+    --foreground: 210 20% 94%;
+    --card: 222 20% 10%;
+    --card-foreground: 210 20% 94%;
+    --popover: 222 20% 11%;
+    --popover-foreground: 210 20% 94%;
+    --primary: 199 92% 58%;
+    --primary-foreground: 222 30% 8%;
+    --secondary: 222 18% 14%;
+    --secondary-foreground: 210 20% 94%;
+    --muted: 222 18% 13%;
+    --muted-foreground: 215 12% 66%;
+    --accent: 222 18% 16%;
+    --accent-foreground: 210 20% 94%;
+    --destructive: 0 80% 64%;
+    --destructive-foreground: 222 30% 8%;
+    --success: 152 60% 52%;
+    --success-foreground: 222 30% 8%;
+    --warning: 40 92% 58%;
+    --warning-foreground: 222 30% 8%;
+    --border: 222 14% 20%;
+    --input: 222 14% 26%;
+    --ring: 199 92% 58%;
+    --chart-grid: 222 14% 18%;
+    --chart-axis: 215 12% 62%;
+    --chart-line: 210 20% 94%;
+    --chart-accent: 199 92% 58%;
+    --chart-benchmark: 215 12% 50%;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root {
+    --border: 220 13% 60%;
+    --muted-foreground: 220 9% 28%;
+  }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root {
+    --border: 222 14% 46%;
+    --muted-foreground: 215 12% 78%;
+  }
+}

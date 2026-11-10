@@ -74,9 +74,11 @@ class Settings(BaseSettings):
     trust_proxy: bool = ON_SERVERLESS  # take the client IP from X-Forwarded-For (only behind a trusted proxy)
     cron_secret: str | None = None  # Bearer secret for /api/cron/* (Vercel Cron sends CRON_SECRET)
     max_concurrent_runs: int = 1
+    visitor_watchlist_max: int = 25  # tickers per visitor list (the public Angular app)
+    watch_writes_per_hour: int = 60  # visitor watchlist adds + removes per client per hour
     scheduler_enabled: bool = False
     scheduler_cron: str = "0 8 * * 1-5"  # weekdays 08:00 (server time)
-    cors_origins: str = "http://localhost:8080,http://localhost:5173"
+    cors_origins: str = "http://localhost:8080,http://localhost:5173,http://localhost:4200"
 
 
 @lru_cache

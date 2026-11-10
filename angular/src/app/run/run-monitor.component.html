@@ -1,0 +1,95 @@
+<section class="surface monitor">
+  <h2 id="run-heading">
+    Live run
+    @if (runTicker(); as t) {
+      <span class="mono">{{ t }}</span>
+    }
+  </h2>
+
+  <form class="start" [formGroup]="form" (ngSubmit)="start()">
+    <label for="run-ticker" class="visually-hidden">Ticker to research</label>
+    <input
+      id="run-ticker"
+      class="field mono"
+      type="text"
+      autocomplete="off"
+      spellcheck="false"
+      placeholder="Ticker, e.g. AAPL"
+      formControlName="ticker"
+      [attr.aria-invalid]="tickerCtrl.touched && tickerCtrl.invalid"
+    />
+    @if (active()) {
+      <button type="button" class="btn" (click)="cancel()">Cancel</button>
+    } @else {
+      <button type="submit" class="btn primary">Start run</button>
+    }
+  </form>
+  @if (tickerCtrl.touched && tickerCtrl.invalid) {
+    <p class="caption loss">Enter a ticker: letters first, up to 10 characters.</p>
+  }
+
+  <p class="status small" role="status">
+    @switch (status()) {
+      @case ('idle') { <span class="muted">Start a run here or from a watchlist row. A run takes one to three minutes.</span> }
+      @case ('connecting') { Connecting to the API }
+      @case ('retrying') { The API is waking up. Trying again in {{ seconds(retryInMs()) }} s (attempt {{ attempt() }} of 3). }
+      @case ('queued') { {{ queueMessage() }} }
+      @case ('running') { Running. Steps update as the agents report. }
+      @case ('done') { Done. The memo's rating is below. }
+      @case ('cancelled') { Cancelled. The connection is closed and the server stopped the run. }
+      @case ('error') { <span class="loss">{{ error() }}</span> }
+    }
+  </p>
+
+  @if (status() !== 'idle') {
+    <ol class="steps" aria-label="Pipeline steps">
+      @for (s of steps(); track s.id) {
+        <li [attr.data-state]="s.state">
+          <span class="marker" aria-hidden="true"></span>
+          <span class="label">{{ s.label }}</span>
+          <span class="visually-hidden">
+            @switch (s.state) {
+              @case ('pending') { , waiting }
+              @case ('active') { , in progress }
+              @case ('done') { , done }
+              @case ('warn') { , finished with a warning }
+              @case ('stopped') { , stopped }
+            }
+          </span>
+          @if (s.detail) {
+            <span class="detail caption muted">{{ s.detail }}</span>
+          }
+        </li>
+      }
+    </ol>
+  }
+
+  @if (result(); as r) {
+    <div class="result">
+      <div class="rating">
+        <span class="pill {{ r.memo.rating | ratingTone }}">{{ r.memo.rating | ratingLabel }}</span>
+        <span class="small muted">{{ conviction(r.memo.conviction) }} conviction, {{ r.memo.horizon_days }} day horizon</span>
+      </div>
+      <p class="small thesis">{{ r.memo.thesis }}</p>
+      @if (r.guardrails.length) {
+        <p class="caption muted">{{ r.guardrails.length }} guardrail adjustment{{ r.guardrails.length === 1 ? '' : 's' }} applied.</p>
+      }
+      @if (r.degraded.length) {
+        <p class="caption muted">Partial run: {{ r.degraded.length }} agent{{ r.degraded.length === 1 ? '' : 's' }} degraded.</p>
+      }
+    </div>
+  }
+
+  @if (recent().length) {
+    <details class="log">
+      <summary class="small">Trace events ({{ tokens() }} tokens so far)</summary>
+      <ul class="caption mono">
+        @for (e of recent(); track e.seq) {
+          <li>
+            <span class="muted">#{{ e.seq }}</span> {{ e.agent }}: {{ e.type }}
+          </li>
+        }
+      </ul>
+    </details>
+  }
+</section>
