@@ -61,7 +61,8 @@ Tool-call traces and token counts are not tables. They live inside `runs.events_
 - Phase 3, scheduling: BUILT. A real run in GitHub waits on two steps only the owner can take (section 5).
 - Phase 4, PySpark: DONE (Docker, public-domain data)
 - Phase 5, model: DONE (no useful edge found; see below)
-- Phases 6 to 7: in progress
+- Phase 6, Cloud Run staging: NOT DONE (needs billing; the container was checked locally)
+- Phase 7, architecture doc: DONE ([`docs/gcp-architecture.md`](docs/gcp-architecture.md))
 
 ## 3. Measurements
 
@@ -188,6 +189,28 @@ Unit tests (`tests/test_spark_indicators.py`, no Docker needed): the H.10 parser
   - on a pure random walk, the whole pipeline shows no skill (AUC within 0.03 of 0.5).
 - **Commands:** `python -m data_platform.research.direction_model --bqml --project axiom-data-514305` (local part about 8 s). The BQML model is `axiom_research.direction_logreg`.
 
+**Phase 6: Cloud Run staging: not done** (2026-11-10)
+
+| Check | Result |
+|---|---|
+| `gcloud billing projects describe axiom-data-514305` | `billingEnabled: False` |
+| `gcloud services enable run.googleapis.com` | refused: "Billing must be enabled for activation of service(s) 'run.googleapis.com,artifactregistry.googleapis.com,containerregistry.googleapis.com'" |
+| `gcloud services enable secretmanager.googleapis.com cloudscheduler.googleapis.com` | refused the same way |
+| The image a staging service would run (`backend/Dockerfile`), locally | builds (194 MB), and `/api/health` returns `{"ok":true,...,"storage":"sqlite"}` under `--memory=512m --cpus=1`, using 161 MiB |
+
+The deploy command it would use is sketched in `docs/gcp-architecture.md`. It was not run.
+
+**Final checks** (after all phases)
+
+| Check | Result | Command |
+|---|---|---|
+| Backend tests | 187 passed, 8 skipped (4 Postgres, 4 opt-in BigQuery) | `python -m pytest -q` |
+| Frontend tests | 88 passed (6 files) | `npm test` |
+| Replay evals | 21/21 (16/16 core) | `python -m evals.run --mode replay ...` |
+| MCP tools | 11 | `@mcp.tool()` count |
+| App code changed vs `main` | only `orchestrator.py` (+3/-1: the optional `today` parameter for the eval fix) | `git diff main --stat -- backend/axiom backend/evals/recordings` |
+| `requirements.txt` vs `uv.lock` | identical (new deps are in the optional `data` extra) | the CI diff command |
+
 **Sandbox capabilities, measured** (`python -m data_platform.sandbox_probe --project axiom-data-514305`, 05:50Z). Billing is off: `gcloud billing projects describe` says `billingEnabled: False`.
 
 | Feature | Result |
@@ -237,4 +260,13 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 
 ## 7. Resume-safe sentences
 
-_Written after the last phase._
+Each sentence is backed by a measurement above.
+
+1. Built a config-driven, idempotent ELT pipeline from production Postgres into BigQuery (raw, staging and mart layers) using batch load jobs in the free sandbox. Repeat runs load 0 duplicate keys, and source and warehouse row counts match on every table.
+2. Wrote 10 SQL data-quality checks that gate the analytics tables. A test that injects one bad row per rule fails exactly the 9 expected check results, and the gate caught a real stale-data bug during development.
+3. Set up least-privilege GCP access with a loader and a read-only dashboard service account. A full pipeline run as the loader completed all 39 jobs with 0 errors. The reader is refused on raw data, on staging data and on writes.
+4. Rewrote Axiom's technical indicators in PySpark (window functions, plus `applyInPandas` for Wilder RSI) and matched the pandas version row for row on up to 20M rows: identical NULLs, and a max relative difference of 1.4e-8 (leaving out 2 zero-volatility rows where pandas has rounding residue). Benchmarked honestly: on one 8-core machine, pandas was 3 to 54 times faster.
+5. Built a time-split, embargoed classifier with baselines, block-bootstrap intervals, leakage tests (including a positive control) and a BigQuery ML twin that agrees on 96.9% of test predictions. Reported that it doesn't beat a majority-class baseline on accuracy.
+6. Chose integer-range partitioning so BigQuery's 60-day sandbox partition expiry can't drop price history. A 2026-only query then scans 85% fewer bytes (169,128 vs 1,093,500).
+
+The scheduled GitHub Actions run is deliberately left out of this list until its first real run succeeds (section 5).

@@ -127,6 +127,13 @@ uv run python -m data_platform dryrun --env prod --project <gcp-project>  # byte
 - **Access.** The prod source is a read-only Postgres role, given in `backend/.env.data` (gitignored). In BigQuery, a
   loader and a dashboard-reader service account get per-dataset roles. See
   [`docs/gcp-governance.md`](docs/gcp-governance.md).
+- **Scheduled.** [`.github/workflows/data-platform.yml`](.github/workflows/data-platform.yml) runs the prod pipeline on
+  weekdays as the loader, through Workload Identity Federation (no stored key).
+- **PySpark.** `python -m data_platform.spark.bench` runs the indicators in Spark (Docker), checks them row for row
+  against Axiom's pandas code, and times both, on Federal Reserve H.10 exchange rates (public domain) and synthetic data.
+- **Research model.** `python -m data_platform.research.direction_model [--bqml --project <id>]` is a time-split
+  direction model with baselines, leakage tests and a BigQuery ML twin. It isn't used by the agents.
+- Design: [`docs/gcp-architecture.md`](docs/gcp-architecture.md). Every number: [`RESULTS.md`](RESULTS.md).
 
 ## Free-tier strategy
 
