@@ -111,7 +111,13 @@ async def test_short_retry_after_is_waited_out_once(monkeypatch):
 
 @respx.mock
 async def test_invalid_tool_call_sample_is_retried_once():
-    bad = {"error": {"message": "tool call validation failed", "type": "invalid_request_error", "code": "tool_use_failed"}}
+    bad = {
+        "error": {
+            "message": "tool call validation failed",
+            "type": "invalid_request_error",
+            "code": "tool_use_failed",
+        }
+    }
     route = respx.post("https://alpha.test/v1/chat/completions").mock(
         side_effect=[httpx.Response(400, json=bad), httpx.Response(200, json=completion("ok on resample"))]
     )
