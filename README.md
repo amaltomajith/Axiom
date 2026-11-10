@@ -96,6 +96,32 @@ Free tiers, no card: Vercel (static frontend + Python function), Neon Postgres, 
 the daily briefing. A Dockerfile covers Cloud Run if Vercel's limits get in the way. Full steps, the env table and a
 ten-minute verification checklist are in [`docs/deployment.md`](docs/deployment.md).
 
+## Data platform
+
+A BigQuery warehouse built *beside* the agents (it never calls an LLM or touches prompts and tools). It runs in the
+BigQuery sandbox, so no card is needed. Measured results are in [`RESULTS.md`](RESULTS.md).
+
+```bash
+cd backend && uv sync --extra data
+uv run python -m data_platform seed                                     # synthetic source DB for development
+uv run python -m data_platform run --env dev  --project <gcp-project>   # synthetic SQLite -> axiomdev_* datasets
+uv run python -m data_platform run --env prod --project <gcp-project>   # Neon, read-only role -> axiom_* datasets
+uv run python -m data_platform dryrun --env prod --project <gcp-project>  # bytes each query would scan
+```
+
+- **Layers.** `raw` is an append-only change log written by batch load jobs. `staging` holds typed rows, one per key
+  (newest version). `mart` holds the scorecard (empty below 30 directional calls, like the app), tool latency
+  percentiles, LLM tokens per day with a 7-day average, and rolling price indicators.
+- **Config-driven.** [`backend/data_platform/tables.yaml`](backend/data_platform/tables.yaml) lists each table with
+  its key, its watermark and whether it loads incrementally or as a full snapshot. Adding a table means adding an
+  entry there and a staging `.sql` file.
+- **Sandbox-safe.** The sandbox blocks DML and streaming, so the pipeline uses neither. Re-runs are idempotent
+  because they skip versions already loaded and rebuild staging with `QUALIFY ROW_NUMBER()`. Price tables use
+  integer-range partitions on the day number, because the sandbox's 60-day partition expiry would silently drop
+  older date partitions.
+- **Private.** Client IPs are redacted before loading. Price data is never published.
+- **Source access.** The prod source is a read-only Postgres role, given in `backend/.env.data` (gitignored).
+
 ## Free-tier strategy
 
 Free tiers fail with `429`s rather than bills, and the real limit is usually tokens per minute. So:
@@ -132,6 +158,7 @@ backend/axiom/
   memory/            store (SQLite or Postgres), outcome scorer, scorecard
   api/               FastAPI app (SSE analysis stream, memory, approvals)
 backend/evals/       honesty scenarios, injection attacks + undefended control, judge, record/replay
+backend/data_platform/  BigQuery ELT: tables.yaml, extract/load, staging + mart SQL, synthetic seed
 refs/                the original design blueprint
 ```
 

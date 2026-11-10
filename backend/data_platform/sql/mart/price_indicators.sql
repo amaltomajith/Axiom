@@ -1,7 +1,7 @@
 -- description: Rolling indicators per ticker and day. SMA and volatility match axiom/quant/indicators.py; RSI here is Cutler's (simple means), because Axiom's Wilder RSI is recursive and a window frame cannot express it.
 -- requires: ${staging}.price_bars
--- partition_by: date
--- cluster_by: ticker
+-- partition_by: date_key
+-- cluster_by: ticker, date
 WITH bars AS (
   SELECT
     ticker,
@@ -15,6 +15,7 @@ WITH bars AS (
 SELECT
   ticker,
   date,
+  UNIX_DATE(date) AS date_key,
   close,
   IF(COUNT(close) OVER w20 = 20, AVG(close) OVER w20, NULL) AS sma20,
   IF(COUNT(close) OVER w50 = 50, AVG(close) OVER w50, NULL) AS sma50,

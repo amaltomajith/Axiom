@@ -51,27 +51,75 @@ Tool-call traces and token counts are not tables. They live inside `runs.events_
 | Replay evals at 2026-10-13 | 21/21, so the eval-runner change does not alter request keys | wrapper as above |
 | `ruff format --check .` | passes | |
 
+**Eval date fix** (approved by the human, commit `4fd8de2`). `analyze()` takes an optional `today` (the default is unchanged), and the eval runner pins it to 2026-10-13. After the fix: replay passes 21/21 on 2026-11-10 with no wrapper, and the backend has 160 passed, 4 skipped. No re-record was needed.
+
 ## 2. What was built
 
 - Phase 0, baseline: DONE
-- Phase 1 to 7: not started
+- Phase 1, BigQuery ELT warehouse: DONE (sandbox, no billing)
+- Phases 2 to 7: not started
 
 ## 3. Measurements
 
-_Pending._
+All on 2026-11-10, project `axiom-data-514305` (BigQuery sandbox, location US), from this Windows machine.
+
+| Item | Number | Unit | Command / evidence |
+|---|---|---|---|
+| Prod source rows (Neon, read-only role) | runs 5, theses 5, outcomes 0, actions 19, action_keys 19, watchlist 0, paper_trades 0, usage 6 | rows | `make_reader.py` count as `axiom_reader` (05:21Z) |
+| Prod trace events | 48 tool_result, 87 llm_call (across 5 runs) | events | read-only scan of `runs.events_json` |
+| Prod run 1 | 54 rows loaded (29 incremental + 25 snapshot), 3,000 price bars, reconciled, 184.8 s | | `python -m data_platform run --env prod` (05:58Z) |
+| Prod run 2 (same source) | 0 incremental rows loaded, snapshots reloaded (25), reconciled, 161.8 s | | same (06:02Z) |
+| Prod source vs warehouse | runs 5/5, theses 5/5, outcomes 0/0, actions 19/19, action_keys 19/19, watchlist 0/0, paper_trades 0/0, usage 6/6 | rows | `reconciled` log event, both runs |
+| Prod staging/mart rows | tool_calls 48, llm_calls 87, price_bars 3,000, llm_usage_daily 17, tool_latency_daily 18, price_indicators 3,000, scorecard **0** (no directional calls) | rows | `model_built` events, prod run 2 |
+| Synthetic source rows | runs 80, theses 80, outcomes 46 (33 directional), actions 38, action_keys 22, watchlist 3, paper_trades 4, usage 7 | rows | `python -m data_platform seed` |
+| Dev run 1 / run 2 | 280 / 36 rows loaded (run 2: 0 incremental, 36 snapshot); 145.2 s / 115.5 s; both reconciled | | `python -m data_platform run --env dev` (05:51Z, 05:56Z) |
+| Duplicate keys after 2 runs (dev) | 0 in all 9 staging tables | rows | `COUNT(*) - COUNT(DISTINCT pk)` per table |
+| SQL indicators vs Axiom Python | SMA20/50/200 max abs diff 0; vol20 max abs diff 2.9e-15; null pattern identical | | `mart.price_indicators` vs `axiom.quant.indicators`, 9,000 bars, 6 tickers |
+| Dry-run bytes, prod | staging: runs 190,868; theses 20,813; actions 15,528; action_keys 1,216; usage 342; tool_calls 101,683; llm_calls 101,683; price_bars 214,500. mart: scorecard 220; tool_latency_daily 1,733; llm_usage_daily 3,393; price_indicators 64,500 | bytes | `python -m data_platform dryrun --env prod` (06:04Z) |
+| Dry-run bytes, dev | staging: runs 591,723; tool_calls 476,024; llm_calls 476,024; price_bars 643,500. mart: scorecard 4,842; tool_latency_daily 21,442; llm_usage_daily 23,485; price_indicators 193,500 | bytes | `python -m data_platform dryrun --env dev` |
+| Partition pruning (range partitions) | full scan 1,093,500 vs 2026-only filter 169,128 | bytes (dry run) | 9,000-bar table, `WHERE date_key >= UNIX_DATE('2026-01-01')` |
+| Sandbox partition expiry trap | 9,000 bars in, 294 kept with native MONTH date partitions | rows | first dev run, before switching to range partitions |
+| Integration test (real BigQuery) | 1 passed, 3 pipeline runs, 361.8 s | | `AXIOM_BQ_INTEGRATION=1 pytest tests/test_data_platform_bq.py` (06:10Z) |
+| Backend tests after Phase 1 | 170 passed, 5 skipped (4 Postgres, 1 opt-in BigQuery) | tests | `python -m pytest -q` |
+| Frontend tests after Phase 1 | 88 passed | tests | `npm test` |
+| MCP tools | 11 | tools | `@mcp.tool()` count |
+
+**Sandbox capabilities, measured** (`python -m data_platform.sandbox_probe --project axiom-data-514305`, 05:50Z). Billing is off: `gcloud billing projects describe` says `billingEnabled: False`.
+
+| Feature | Result |
+|---|---|
+| Load job (NDJSON) | allowed |
+| Query job to a destination table | allowed |
+| `CREATE OR REPLACE TABLE AS`, `CREATE OR REPLACE VIEW` | allowed |
+| `INSERT`, `MERGE` (DML) | blocked: "DML queries are not allowed in the free tier" |
+| Streaming insert | blocked: "Streaming insert is not allowed in the free tier" |
+| BigQuery ML `CREATE MODEL` | allowed |
+| Default table expiry and partition expiry | 60 days each; a longer partition expiry is refused ("Billing has not been enabled") |
+
+Google's published sandbox quotas (storage and monthly query volume) were **not** re-checked: the docs page could not be fetched from this session. Measured usage is under 1 MB per query.
+
+**Design notes**
+- **Price table:** partitioned on `date_key = UNIX_DATE(date)` (30-day ranges) and clustered by `ticker, date`. Native date partitions would have kept only the last 60 days in the sandbox (measured above). Range partitions keep pruning on date filters. With billing enabled, native MONTH partitioning on `date` would be the better choice.
+- **No MERGE:** raw is an append-only change log. Incremental tables skip `(pk, watermark)` versions raw already has, using a 1-day look-back for late commits. Staging is rebuilt with `QUALIFY ROW_NUMBER() OVER (PARTITION BY pk ORDER BY _wm DESC, _loaded_at DESC) = 1`. Small tables that can lose rows are full snapshots.
+- **Watermarks assume timestamps only move forward.** The first version of the integration test broke that assumption on purpose, and reconciliation caught the missed rows. Axiom stamps rows with `time.time()` on insert.
 
 ## 4. GCP services actually used
 
-None yet.
+- **BigQuery** (sandbox): datasets `axiom_raw`, `axiom_staging`, `axiom_mart` (prod) and `axiomdev_*` (synthetic). Load jobs, query jobs, dry runs. Evidence: the dataset listing printed after the integration test, and the run logs above.
+- **Cloud SDK / IAM sign-in**: `gcloud auth login` and application-default credentials as the project owner. No service accounts yet (Phase 2).
 
 ## 5. Not done and why
 
-- **Eval replay is date-bound.** Left unfixed because the fix touches the agent entry point (`analyze()` would take an optional `today`, pinned by the eval runner to 2026-10-13). That needs the human's go-ahead.
+- Phases 2 to 7 not started yet.
+- Cloud Run (Phase 6) and Cloud Scheduler need billing; the human chose the sandbox, so these will be "Not done".
 
 ## 6. Honest limits
 
-_Pending._
+- **Prod data is tiny:** 5 runs, 0 scored outcomes. The scorecard mart is correctly empty for prod. All scorecard statistics above come from **synthetic** data and say nothing about Axiom's skill.
+- **Price data is private:** it comes from yfinance through Axiom's own fetcher, is kept in a private dataset only, and is never published.
+- **Sandbox tables expire after 60 days.** Each run rebuilds staging and marts, but raw history older than 60 days would be lost without billing.
+- **RSI differs:** the SQL RSI is Cutler's (simple means), not Axiom's Wilder RSI, and is labelled `rsi14_cutler`.
 
 ## 7. Resume-safe sentences
 
-_Pending._
+_Written after the last phase._

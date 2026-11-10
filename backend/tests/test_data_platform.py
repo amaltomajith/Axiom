@@ -151,7 +151,7 @@ def test_every_staging_model_reads_a_configured_table():
 def test_price_tables_are_partitioned_and_clustered():
     by_name = {m.name: m for m in models("staging") + models("mart")}
     for name in ("price_bars", "price_indicators"):
-        assert by_name[name].partition_by == "date" and by_name[name].cluster_by == ["ticker"]
+        assert by_name[name].partition_by == "date_key" and by_name[name].cluster_by == ["ticker", "date"]
 
 
 def test_layout_renders_layer_placeholders():

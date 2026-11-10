@@ -95,7 +95,7 @@ def build(wh: Warehouse, layout: Layout, model: SqlModel) -> int | None:
         layout.render(model.sql),
         layout.fq(model.layer, model.name),
         description=model.description,
-        partition_field=model.partition_by,
+        range_partition_field=model.partition_by,
         cluster_fields=model.cluster_by or None,
     )
     event(

@@ -29,7 +29,7 @@ class Warehouse(Protocol):
         *,
         truncate: bool,
         description: str = "",
-        partition_field: str | None = None,
+        range_partition_field: str | None = None,
         cluster_fields: list[str] | None = None,
     ) -> LoadResult: ...
     def query(self, sql: str) -> list[dict[str, Any]]: ...
@@ -39,7 +39,7 @@ class Warehouse(Protocol):
         dest: str,
         *,
         description: str = "",
-        partition_field: str | None = None,
+        range_partition_field: str | None = None,
         cluster_fields: list[str] | None = None,
     ) -> LoadResult: ...
     def dry_run_bytes(self, sql: str) -> int: ...
@@ -50,8 +50,11 @@ class Warehouse(Protocol):
 
 class BigQueryWarehouse:
     def __init__(self, project: str, location: str = "US"):
+        import os
+
         from google.cloud import bigquery
 
+        os.environ.setdefault("GOOGLE_CLOUD_PROJECT", project)  # quiets google.auth's project lookup
         self.bq = bigquery
         self.client = bigquery.Client(project=project, location=location)
         self.project, self.location = project, location
@@ -78,12 +81,36 @@ class BigQueryWarehouse:
             self.bq.SchemaField(n, t, mode="REQUIRED" if n.startswith("_") else "NULLABLE") for n, t in schema
         ]
 
-    def _shape(self, cfg: Any, partition_field: str | None, cluster_fields: list[str] | None) -> None:
-        if partition_field:
-            # MONTH, not DAY: a few thousand bars per ticker would make thousands of tiny daily partitions
-            cfg.time_partitioning = self.bq.TimePartitioning(type_="MONTH", field=partition_field)
+    def _shape(self, cfg: Any, range_partition_field: str | None, cluster_fields: list[str] | None) -> None:
+        if range_partition_field:
+            # Integer-range partitions on a day number (UNIX_DATE), 30 days each, years 1970-2069. Not native
+            # date partitions: the sandbox forces a 60-day expiry on time partitions, which silently drops
+            # every partition older than 60 days (measured: 9,000 bars in, 294 kept). Range partitions have
+            # no partition expiry, and filters on the day number still prune.
+            cfg.range_partitioning = self.bq.RangePartitioning(
+                field=range_partition_field, range_=self.bq.PartitionRange(start=0, end=36_500, interval=30)
+            )
         if cluster_fields:
             cfg.clustering_fields = cluster_fields
+
+    def _drop_if_reshaped(
+        self, table: str, range_field: str | None, cluster_fields: list[str] | None
+    ) -> None:
+        """WRITE_TRUNCATE cannot change a table's partitioning or clustering. Staging and mart tables are
+        rebuilt from raw on every run, so dropping one whose shape changed loses nothing."""
+        from google.api_core.exceptions import NotFound
+
+        try:
+            t = self.client.get_table(table)
+        except NotFound:
+            return
+        has_range = t.range_partitioning.field if t.range_partitioning else None
+        if (
+            t.time_partitioning
+            or has_range != range_field
+            or (t.clustering_fields or None) != (cluster_fields or None)
+        ):
+            self.client.delete_table(table)
 
     def _describe(self, table: str, description: str) -> None:
         if description:
@@ -93,14 +120,22 @@ class BigQueryWarehouse:
                 self.client.update_table(t, ["description"])
 
     def load_rows(
-        self, table, rows, schema, *, truncate, description="", partition_field=None, cluster_fields=None
+        self,
+        table,
+        rows,
+        schema,
+        *,
+        truncate,
+        description="",
+        range_partition_field=None,
+        cluster_fields=None,
     ):
         cfg = self.bq.LoadJobConfig(
             schema=self._schema(schema),
             source_format=self.bq.SourceFormat.NEWLINE_DELIMITED_JSON,
             write_disposition="WRITE_TRUNCATE" if truncate else "WRITE_APPEND",
         )
-        self._shape(cfg, partition_field, cluster_fields)
+        self._shape(cfg, range_partition_field, cluster_fields)
         if not rows and not truncate:
             if not self.table_exists(table):  # create the empty table so later SQL can reference it
                 self.client.create_table(self.bq.Table(table, schema=self._schema(schema)))
@@ -115,9 +150,10 @@ class BigQueryWarehouse:
     def query(self, sql):
         return [dict(r.items()) for r in self.client.query(sql).result()]
 
-    def query_to_table(self, sql, dest, *, description="", partition_field=None, cluster_fields=None):
+    def query_to_table(self, sql, dest, *, description="", range_partition_field=None, cluster_fields=None):
         cfg = self.bq.QueryJobConfig(destination=dest, write_disposition="WRITE_TRUNCATE")
-        self._shape(cfg, partition_field, cluster_fields)
+        self._shape(cfg, range_partition_field, cluster_fields)
+        self._drop_if_reshaped(dest, range_partition_field, cluster_fields)
         job = self.client.query(sql, job_config=cfg)
         job.result()
         self._describe(dest, description)
@@ -160,7 +196,15 @@ class FakeWarehouse:
         return table in self.tables
 
     def load_rows(
-        self, table, rows, schema, *, truncate, description="", partition_field=None, cluster_fields=None
+        self,
+        table,
+        rows,
+        schema,
+        *,
+        truncate,
+        description="",
+        range_partition_field=None,
+        cluster_fields=None,
     ):
         names = {n for n, _ in schema}
         bad = [sorted(set(r) - names) for r in rows if set(r) - names]
