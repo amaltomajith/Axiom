@@ -22,6 +22,9 @@ from typing import Any
 
 # Isolate the cache BEFORE importing axiom (settings are read lazily but cached).
 os.environ.setdefault("CACHE_DB", str(Path(tempfile.mkdtemp()) / "evals.db"))
+# Never Postgres: backend/.env (from `vercel env pull`) can hold the production DATABASE_URL, and this
+# runner clears the cache. An empty env var outranks .env, so the cache and store stay on the temp SQLite.
+os.environ["DATABASE_URL"] = ""
 os.environ.setdefault("LLM_CHAIN", "ollama")
 
 from axiom.agents.faithfulness import check_claims  # noqa: E402

@@ -17,6 +17,19 @@ def make_ohlcv(n: int = 800, seed: int = 1, drift: float = 0.0003, vol: float = 
     )
 
 
+@pytest.fixture(autouse=True)
+def _never_read_dotenv(monkeypatch):
+    """backend/.env can hold production secrets (`vercel env pull` writes the Neon DATABASE_URL there).
+    Tests must behave as in CI, where no .env exists: ignore the file and never reach a real database."""
+    from axiom.config import Settings, get_settings
+
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    get_settings.cache_clear()
+    yield
+    get_settings.cache_clear()
+
+
 @pytest.fixture
 def ohlcv() -> pd.DataFrame:
     return make_ohlcv()
