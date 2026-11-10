@@ -51,8 +51,9 @@ The pipeline reads production Neon as `axiom_reader`. That role has `CONNECT`, `
 | Rate-limit counters (`usage`) | Axiom's `usage` table | **The source has client IP addresses** (`ip:<address>` keys). The extractor cuts each key to the part before the colon (`ip`, `global`) before loading, so no IP reaches BigQuery. Staging sums the counters per scope. |
 | Daily price bars | yfinance, through Axiom's own fetcher | No. Public market data, kept in private datasets only and never published or committed. |
 | `dq_results` | The pipeline's checks | No. |
+| `axiom_research` (H.10 exchange rates, model features and predictions) | Federal Reserve Board, public domain | No. Created by the owner; neither service account has access. |
 
-**No PII in the warehouse, checked:** a scan of every table in all six datasets for IPv4/IPv6 and email patterns found 0 matching rows (`RESULTS.md`, Phase 2). Every dataset has the label `contains-pii: no`, plus `app: axiom` and `managed-by: data-platform`.
+**No PII in the warehouse, checked:** a scan of every table in the six pipeline datasets for IPv4/IPv6 and email patterns found 0 matching rows (`RESULTS.md`, Phase 2). Every dataset has the label `contains-pii: no`, plus `app: axiom` and `managed-by: data-platform`.
 
 ## Descriptions
 

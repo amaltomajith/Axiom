@@ -60,7 +60,8 @@ Tool-call traces and token counts are not tables. They live inside `runs.events_
 - Phase 2, data quality and governance: DONE
 - Phase 3, scheduling: BUILT. A real run in GitHub waits on two steps only the owner can take (section 5).
 - Phase 4, PySpark: DONE (Docker, public-domain data)
-- Phases 5 to 7: in progress
+- Phase 5, model: DONE (no useful edge found; see below)
+- Phases 6 to 7: in progress
 
 ## 3. Measurements
 
@@ -148,6 +149,45 @@ Unit tests (`tests/test_spark_indicators.py`, no Docker needed): the H.10 parser
 
 **What the timing says.** On one 8-core machine, Spark is 3 to 54 times slower than pandas for this job. The gap narrows as the data grows (54x at 155k rows, 3.2x at 20M), but pandas still wins at 20M rows. The JVM and container start alone take about 7 s. The recursive RSI runs in Python in both engines. Spark would pay off only past what one machine's memory holds, or on a cluster. Neither was tested.
 
+**Phase 5: direction model** (2026-11-10)
+
+`backend/data_platform/research/direction_model.py`. It isn't used by the app, the agents or the MCP server.
+- **Question:** will an H.10 exchange rate be higher in 5 trading days?
+- **Data:** 24 currencies, public domain. Rows with an unchanged rate (pegs) are dropped.
+- **Features:** 1/5/20-day log returns, distance from SMA 20/50/200, RSI 14 and vol 20. All use only past data and come from Axiom's own functions.
+- **Model:** standardised logistic regression with seed 7. `C` was chosen on validation log loss from {0.001, ..., 10}; 0.001 won, the edge of the grid. It was then refit on train plus validation.
+- **Split by time, with a 5-day embargo:** a row counts only if its label window ends inside its period.
+
+| Period | Dates | Rows |
+|---|---|---|
+| train | 2000-01-03 to 2015-12-31 | 81,876 |
+| validation | 2016-01-01 to 2019-12-31 | 22,119 |
+| test (used once) | 2020-01-02 to 2026-10-30 | 38,960 |
+| embargo (dropped) | the 5 rows before each boundary | 224 |
+
+| On the test period | Accuracy | Accuracy, non-overlapping rows (95% CI) | Log loss | ROC AUC |
+|---|---|---|---|---|
+| **Model (sklearn)** | 0.525 | 0.523 (0.512 to 0.534) | 0.6895 | 0.536 |
+| Majority class from training (always "up") | 0.527 | 0.527 (0.516 to 0.538) | 0.6929 | 0.5 |
+| 5-day momentum | 0.517 | 0.513 (0.502 to 0.524) | n/a | 0.516 |
+| Coin flip | 0.5 | | 0.6931 | 0.5 |
+| **BigQuery ML twin** (`logistic_reg`, same features and rows) | 0.5251 | | 0.6922 | 0.5361 |
+
+- **Bootstrap over 82 calendar months** (500 resamples, whole months, so the dollar's same-day move stays together):
+  - AUC 95% CI 0.516 to 0.556;
+  - log-loss gain over the majority class -0.0008 to 0.0058;
+  - accuracy gain over the majority class -2.3 to +2.0 points.
+- **Trading on the signal** (non-overlapping 5-day windows): mean log return -0.00057 per trade, against -0.00029 for always long.
+- **sklearn vs BQML:** they give the same class on 96.9% of the 38,960 test rows, with a mean absolute probability difference of 0.0175. BQML used its default (no L2), while sklearn used C = 0.001, so the two aren't regularised identically.
+- **Verdict:** there's a small ranking signal whose AUC interval excludes 0.5. But the model is **not** more accurate than always predicting "up", and trading on it lost money against simply holding. It's not useful as a trading signal.
+- **Leakage tests** (`tests/test_direction_model.py`, 5 passed):
+  - features up to a date don't change when every later price is randomised;
+  - the same check catches a deliberately leaky feature (tomorrow's return), so it isn't vacuous;
+  - labels are exactly 5 rows ahead;
+  - no label window crosses a split boundary;
+  - on a pure random walk, the whole pipeline shows no skill (AUC within 0.03 of 0.5).
+- **Commands:** `python -m data_platform.research.direction_model --bqml --project axiom-data-514305` (local part about 8 s). The BQML model is `axiom_research.direction_logreg`.
+
 **Sandbox capabilities, measured** (`python -m data_platform.sandbox_probe --project axiom-data-514305`, 05:50Z). Billing is off: `gcloud billing projects describe` says `billingEnabled: False`.
 
 | Feature | Result |
@@ -172,6 +212,8 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 - **BigQuery** (sandbox): datasets `axiom_raw`, `axiom_staging`, `axiom_mart` (prod) and `axiomdev_*` (synthetic). Load jobs, query jobs, dry runs. Evidence: the dataset listing printed after the integration test, and the run logs above.
 - **Cloud SDK / IAM sign-in**: `gcloud auth login` and application-default credentials as the project owner. Owner credentials were used for setup and the runs above.
 - **IAM**: two service accounts and dataset-level grants (`docs/gcp-governance.md`). No keys.
+- **BigQuery ML** (sandbox): `CREATE MODEL ... logistic_reg`, `ML.EVALUATE`, `ML.PREDICT` in dataset `axiom_research` (public-domain H.10 data only).
+- **Workload Identity Federation**: pool `github`, provider `axiom-repo` (Phase 3).
 - **IAM Service Account Credentials API**: short-lived tokens for acting as the accounts (enabled by the owner).
 
 ## 5. Not done and why
@@ -190,6 +232,7 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 - **Sandbox tables expire after 60 days.** Each run rebuilds staging and marts, but raw history older than 60 days would be lost without billing.
 - **Data-quality checks are only as fresh as the watermark:** a source row changed without a newer timestamp is not reloaded. The checks catch it when the new value breaks a rule (as in dev), but not when it doesn't.
 - **Spark was not faster here:** single machine, at most 20M rows. No cluster run.
+- **The model has no practical edge:** see Phase 5. The regularisation choice hit the edge of its grid.
 - **RSI differs:** the SQL RSI is Cutler's (simple means), not Axiom's Wilder RSI, and is labelled `rsi14_cutler`.
 
 ## 7. Resume-safe sentences
