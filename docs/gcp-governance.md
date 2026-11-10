@@ -31,6 +31,13 @@ Re-run `data_platform.access` after dropping and recreating a dataset, because a
 - `pytest tests/test_access_bq.py` (opt-in): the reader can read the marts. It is refused on raw, on staging, on writing a table, and on creating a dataset. The loader can read raw and write to and delete from a dev raw table, but can't create a dataset.
 - `python -m data_platform run --env dev --impersonate axiom-elt-loader@...`: a full pipeline run as the loader succeeded. BigQuery's job history shows all 39 jobs ran as the loader, with 0 errors. So these roles are enough for the pipeline, not just narrow.
 
+## The scheduled run (GitHub Actions)
+
+`.github/workflows/data-platform.yml` gets into GCP through Workload Identity Federation. No key is stored.
+- **Pool:** `github`. **Provider:** `axiom-repo`, issuer `https://token.actions.githubusercontent.com`.
+- **Provider condition:** GitHub's token must name repository id `1176257246` and owner id `158803696`. Ids still match after a rename, and a fork has a different id. `job_workflow_ref` must start with `amaltomajith/Axiom/.github/workflows/data-platform.yml@`, so no other workflow in the repo can use it. The event must be `schedule`, `workflow_dispatch` or `push`, so pull requests can't use it.
+- **Binding:** `roles/iam.workloadIdentityUser` on `axiom-elt-loader` for `principalSet://iam.googleapis.com/projects/103613789288/locations/global/workloadIdentityPools/github/attribute.repository_id/1176257246`. That's the only thing the workflow can become.
+
 ## Source database access
 
 The pipeline reads production Neon as `axiom_reader`. That role has `CONNECT`, `USAGE` on schema `public`, and `SELECT` on its tables (including future ones). Nothing else. A test insert as `axiom_reader` was refused with "permission denied for table watchlist". The app's own admin connection string is never used by the pipeline: `data_platform` blanks `DATABASE_URL` at startup.
@@ -65,4 +72,4 @@ Sandbox tables and partitions expire after 60 days, and a longer expiry is refus
 | Google credentials for local runs | gcloud application-default credentials in the user profile | No |
 | Credentials for the scheduled run (Phase 3) | GitHub Actions encrypted secret for the Neon URL. Google access through Workload Identity Federation as `axiom-elt-loader`, so no key is stored anywhere. | No |
 
-Secret Manager isn't used. The project has no billing account, and the scheduler's secrets live in GitHub.
+Secret Manager is not used: enabling it fails without billing ("Billing must be enabled for activation of service(s) ... secretmanager.googleapis.com", measured 2026-11-10). The scheduled run keeps its one secret (the read-only Neon URL, `AXIOM_SOURCE_DATABASE_URL`) in GitHub encrypted secrets.

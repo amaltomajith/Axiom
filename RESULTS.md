@@ -58,7 +58,9 @@ Tool-call traces and token counts are not tables. They live inside `runs.events_
 - Phase 0, baseline: DONE
 - Phase 1, BigQuery ELT warehouse: DONE (sandbox, no billing)
 - Phase 2, data quality and governance: DONE
-- Phases 3 to 7: not started
+- Phase 3, scheduling: BUILT. A real run in GitHub waits on two steps only the owner can take (section 5).
+- Phase 4, PySpark: DONE (Docker, public-domain data)
+- Phases 5 to 7: in progress
 
 ## 3. Measurements
 
@@ -105,6 +107,47 @@ All on 2026-11-10, project `axiom-data-514305` (BigQuery sandbox, location US), 
 
 **What the dev failure was.** I had changed the synthetic seed to write `proposed` rather than an invented `pending` status. Re-seeding rewrote 5 action rows without moving their watermark. The incremental load correctly skipped them as already loaded, so the warehouse kept the stale `pending` rows. The check stopped the run before the marts. Dropping the dev datasets and reloading fixed it. It's the same rule as Phase 1: a changed row must get a newer timestamp.
 
+**Phase 3: scheduling** (2026-11-10)
+
+`.github/workflows/data-platform.yml` runs `python -m data_platform run --env prod` on weekdays at 14:00 UTC, an hour after the app's own cron. It also runs on manual dispatch. It signs in to GCP as `axiom-elt-loader` through Workload Identity Federation, with no key stored. The logs are the pipeline's JSON events (run start, rows per table, checks, duration), plus a job summary. A failed critical check exits 3 and fails the job.
+
+| Item | Result | Evidence |
+|---|---|---|
+| CI on the pushed branch | success, 83 s | GitHub run 42774286437 |
+| First workflow run (push trigger) | failed as expected: "AXIOM_SOURCE_DATABASE_URL is not set". The secret isn't stored yet, so the job stopped before contacting GCP or Neon. | GitHub run 42774286201 |
+| Workload identity pool `github` + provider `axiom-repo` | created; the condition limits it to this repo's id, this workflow file, and schedule/dispatch/push events | `gcloud iam workload-identity-pools ... create` |
+| The same run as the loader, locally | passes (Phase 2: 39 jobs as `axiom-elt-loader`, 0 errors) | `--impersonate`, job history |
+| Summary step | renders from a real run report | local run of the step's script on the dev report |
+| Price outage guard | a failed fetch keeps the previous price window instead of truncating it; unit test (fails without the guard) | `test_a_partial_price_fetch_keeps_the_previous_window` |
+
+**Phase 4: PySpark** (2026-11-10)
+
+`backend/data_platform/spark/`: SMA 20/50/200 and 20-day volatility as window functions, and Wilder RSI 14 (recursive) per series in `applyInPandas`. The Spark job doesn't import Axiom, so it's an independent implementation checked against `axiom/quant/indicators.py`.
+- **Real data:** Federal Reserve H.10 daily exchange rates, 24 currencies, 2000-01-03 to 2026-11-06, 155,079 rows. Downloaded from federalreserve.gov, whose disclaimer says the site's information "is in the public domain and may be copied and distributed without permission" (citation: Board of Governors of the Federal Reserve System, H.10). Two stock datasets were rejected: one is gated behind a paid subscription with license "other", the other has no license file.
+- **Synthetic data** for scale: seeded GBM, 2,520 business days per series.
+- **Machine:** AMD Ryzen 7 7840HS (8 cores, 16 threads), 15.3 GB RAM, Windows 11. Spark 4.1.4 runs in Docker (`apache/spark:4.1.4-python3` plus pandas 2.3.3 and pyarrow 21) with `--cpus=8 --memory=6g`, `local[8]`. pandas 3.0.6 runs on the host, single process, using Axiom's own functions per series. Each figure is the best of 2 runs.
+
+| Dataset | Rows | Series | pandas total (read, compute, write) | Spark container wall time | Spark compute + write (excludes JVM start and container start) |
+|---|---|---|---|---|---|
+| H.10 (real) | 155,079 | 24 | 0.35 s | 18.8 s | 11.1 s |
+| synthetic | 2,520,000 | 1,000 | 6.6 s | 33.0 s | 25.3 s |
+| synthetic | 10,080,000 | 4,000 | 18.4 s | 63.7 s | 54.4 s |
+| synthetic | 20,160,000 | 8,000 | 35.8 s | 116.3 s | 105.9 s |
+
+Spark session start was 2.9 to 3.1 s in every run. Command: `python -m data_platform.spark.bench --sizes 1000,4000,8000 --repeats 2`. All runs: `pandas_all_total` / `spark_all_wall` in `backend/.cache/spark/bench.json`.
+
+**Correctness, Spark vs Axiom, on every row of all four datasets:**
+
+| Column | NULL positions identical | Max relative difference (all sets) | Notes |
+|---|---|---|---|
+| sma20 / sma50 / sma200 | yes | 5.6e-15 | max absolute 2.8e-9 on H.10 (rates up to the thousands) |
+| vol20 | yes | 2.7e-14 on synthetic; 1.4e-8 on H.10 where vol > 1e-4 | 2 of 154,599 H.10 rows are pegged windows (CNY 2004, LKR 2002) with true volatility 0: Spark gives exactly 0, pandas' rolling std leaves 3.7e-11 and 7.2e-9 of rounding residue |
+| rsi14 (Wilder) | yes | 0 | bit-identical |
+
+Unit tests (`tests/test_spark_indicators.py`, no Docker needed): the H.10 parser, the Spark job's RSI against Axiom's `rsi()` (including the flat, gains-only, losses-only and too-short cases), and deterministic synthetic data.
+
+**What the timing says.** On one 8-core machine, Spark is 3 to 54 times slower than pandas for this job. The gap narrows as the data grows (54x at 155k rows, 3.2x at 20M), but pandas still wins at 20M rows. The JVM and container start alone take about 7 s. The recursive RSI runs in Python in both engines. Spark would pay off only past what one machine's memory holds, or on a cluster. Neither was tested.
+
 **Sandbox capabilities, measured** (`python -m data_platform.sandbox_probe --project axiom-data-514305`, 05:50Z). Billing is off: `gcloud billing projects describe` says `billingEnabled: False`.
 
 | Feature | Result |
@@ -133,8 +176,12 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 
 ## 5. Not done and why
 
-- Phases 3 to 7 not started yet.
-- Cloud Run (Phase 6) and Cloud Scheduler need billing; the human chose the sandbox, so these will be "Not done".
+- **Phase 3, first real run in GitHub: waiting on the owner.** Two steps were blocked for me as permission and secret changes, so they need the owner:
+  1. `gcloud iam service-accounts add-iam-policy-binding axiom-elt-loader@axiom-data-514305.iam.gserviceaccount.com --project axiom-data-514305 --role roles/iam.workloadIdentityUser --member principalSet://iam.googleapis.com/projects/103613789288/locations/global/workloadIdentityPools/github/attribute.repository_id/1176257246`
+  2. `gh secret set AXIOM_SOURCE_DATABASE_URL --repo amaltomajith/Axiom` (paste the read-only URL from `backend/.env.data`).
+
+  GitHub only runs a schedule from the default branch, so the weekday cron starts when this branch is merged to `main`. Until then it runs on manual dispatch or a push that changes the workflow file.
+- Cloud Run (Phase 6), Cloud Scheduler and Secret Manager need billing; the human chose the sandbox, so these will be "Not done".
 
 ## 6. Honest limits
 
@@ -142,6 +189,7 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 - **Price data is private:** it comes from yfinance through Axiom's own fetcher, is kept in a private dataset only, and is never published.
 - **Sandbox tables expire after 60 days.** Each run rebuilds staging and marts, but raw history older than 60 days would be lost without billing.
 - **Data-quality checks are only as fresh as the watermark:** a source row changed without a newer timestamp is not reloaded. The checks catch it when the new value breaks a rule (as in dev), but not when it doesn't.
+- **Spark was not faster here:** single machine, at most 20M rows. No cluster run.
 - **RSI differs:** the SQL RSI is Cutler's (simple means), not Axiom's Wilder RSI, and is labelled `rsi14_cutler`.
 
 ## 7. Resume-safe sentences
