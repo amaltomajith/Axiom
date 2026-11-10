@@ -24,6 +24,8 @@ dependencies = [
 
 [project.optional-dependencies]
 actions = ["composio>=0.8"]  # real Notion/Sheets/Slack execution; dry-run works without it
+# data platform (BigQuery ELT in data_platform/); never part of the API bundle
+data = ["google-cloud-bigquery>=3.25", "pyyaml>=6"]
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10", "respx>=0.21"]

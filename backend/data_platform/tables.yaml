@@ -1,0 +1,114 @@
+# Which operational tables the ELT job copies into BigQuery, and how.
+# Adding a table (e.g. future paper-broker tables) = add an entry here + a staging SQL file; no code change.
+#
+# mode: incremental -> pull rows whose watermark is newer than the newest one already in raw (minus a
+#                      look-back for late commits), skip (pk, watermark) pairs raw already has, append.
+#       snapshot    -> small tables that can lose rows (deletes): reload the whole table each run.
+# watermark: a SQL expression over source columns that only grows when a row changes.
+# columns: source column -> BigQuery type in the raw layer (raw keeps source types; staging casts).
+# redact: column -> rule, applied during extraction so the value never reaches BigQuery.
+
+lookback_seconds: 86400
+
+tables:
+  runs:
+    mode: incremental
+    pk: [run_id]
+    watermark: created_at
+    columns: {run_id: STRING, ticker: STRING, created_at: FLOAT64, result_json: STRING, events_json: STRING}
+
+  theses:
+    mode: incremental
+    pk: [id]
+    watermark: created_at  # rows are immutable except `status`, which staging re-derives from outcomes
+    columns:
+      id: STRING
+      run_id: STRING
+      ticker: STRING
+      created_at: FLOAT64
+      issue_date: STRING
+      horizon_days: INT64
+      price_at_issue: FLOAT64
+      rating: STRING
+      conviction: FLOAT64
+      stop_price: FLOAT64
+      memo_json: STRING
+      findings_json: STRING
+      status: STRING
+
+  outcomes:
+    mode: incremental
+    pk: [thesis_id]
+    watermark: scored_at  # reset on every re-score, so it grows on change
+    columns:
+      thesis_id: STRING
+      scored_at: FLOAT64
+      horizon_date: STRING
+      price_at_horizon: FLOAT64
+      ret_pct: FLOAT64
+      benchmark_ret_pct: FLOAT64
+      excess_ret_pct: FLOAT64
+      direction_hit: INT64
+      beat_benchmark: INT64
+      stop_hit: INT64
+      brier: FLOAT64
+      detail_json: STRING
+
+  actions:
+    mode: incremental
+    pk: [id]
+    watermark: COALESCE(decided_at, created_at)  # a decision is the only later change
+    columns:
+      id: STRING
+      run_id: STRING
+      ticker: STRING
+      created_at: FLOAT64
+      status: STRING
+      plan_json: STRING
+      decided_at: FLOAT64
+      result_json: STRING
+
+  action_keys:
+    mode: snapshot  # keys are released (deleted) when a step fails
+    pk: [key]
+    columns: {key: STRING, action_id: STRING, done_at: FLOAT64}
+
+  watchlist:
+    mode: snapshot
+    pk: [ticker]
+    columns: {ticker: STRING, added_at: FLOAT64}
+
+  paper_trades:
+    mode: snapshot
+    pk: [id]
+    columns:
+      id: STRING
+      ticker: STRING
+      side: STRING
+      quantity: FLOAT64
+      entry_price: FLOAT64
+      entry_date: STRING
+      thesis_id: STRING
+      exit_price: FLOAT64
+      exit_date: STRING
+
+  usage:
+    mode: snapshot
+    pk: [key, bucket]  # unique in the source; after redaction several IPs share a key, so staging sums them
+    columns: {key: STRING, bucket: STRING, n: INT64}
+    redact: {key: before_colon}  # 'ip:203.0.113.7' -> 'ip': client IPs never leave the source database
+
+# Daily bars for every ticker Axiom has a thesis or watch on, plus the scoring benchmark. Fetched with
+# Axiom's own market.fetch_ohlcv (yfinance by default): private dataset only, never published.
+prices:
+  bars: 1500
+  benchmark: SPY
+  columns:
+    ticker: STRING
+    date: DATE
+    open: FLOAT64
+    high: FLOAT64
+    low: FLOAT64
+    close: FLOAT64
+    volume: FLOAT64
+    provider: STRING

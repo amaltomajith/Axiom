@@ -1,0 +1,195 @@
+"""The only module that talks to BigQuery. Batch load jobs and query jobs only: no streaming inserts and
+no DML, both unavailable in the BigQuery sandbox (no billing account)."""
+
+from __future__ import annotations
+
+import io
+import json
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+
+DATASET_LABELS = {"app": "axiom", "managed-by": "data-platform", "contains-pii": "no"}
+
+
+@dataclass(frozen=True)
+class LoadResult:
+    table: str
+    rows: int
+    bytes: int = 0
+
+
+class Warehouse(Protocol):
+    def ensure_dataset(self, dataset_id: str, description: str) -> None: ...
+    def table_exists(self, table: str) -> bool: ...
+    def load_rows(
+        self,
+        table: str,
+        rows: list[dict[str, Any]],
+        schema: list[tuple[str, str]],
+        *,
+        truncate: bool,
+        description: str = "",
+        partition_field: str | None = None,
+        cluster_fields: list[str] | None = None,
+    ) -> LoadResult: ...
+    def query(self, sql: str) -> list[dict[str, Any]]: ...
+    def query_to_table(
+        self,
+        sql: str,
+        dest: str,
+        *,
+        description: str = "",
+        partition_field: str | None = None,
+        cluster_fields: list[str] | None = None,
+    ) -> LoadResult: ...
+    def dry_run_bytes(self, sql: str) -> int: ...
+    def count(self, table: str) -> int: ...
+    def max_watermark(self, table: str) -> float | None: ...
+    def versions_since(self, table: str, pk: list[str], since: float) -> set[tuple]: ...
+
+
+class BigQueryWarehouse:
+    def __init__(self, project: str, location: str = "US"):
+        from google.cloud import bigquery
+
+        self.bq = bigquery
+        self.client = bigquery.Client(project=project, location=location)
+        self.project, self.location = project, location
+
+    def ensure_dataset(self, dataset_id: str, description: str) -> None:
+        ds = self.bq.Dataset(f"{self.project}.{dataset_id}")
+        ds.location, ds.description, ds.labels = self.location, description, dict(DATASET_LABELS)
+        ds = self.client.create_dataset(ds, exists_ok=True)
+        if ds.labels != DATASET_LABELS or ds.description != description:
+            ds.labels, ds.description = dict(DATASET_LABELS), description
+            self.client.update_dataset(ds, ["labels", "description"])
+
+    def table_exists(self, table: str) -> bool:
+        from google.api_core.exceptions import NotFound
+
+        try:
+            self.client.get_table(table)
+            return True
+        except NotFound:
+            return False
+
+    def _schema(self, schema: list[tuple[str, str]]) -> list[Any]:
+        return [
+            self.bq.SchemaField(n, t, mode="REQUIRED" if n.startswith("_") else "NULLABLE") for n, t in schema
+        ]
+
+    def _shape(self, cfg: Any, partition_field: str | None, cluster_fields: list[str] | None) -> None:
+        if partition_field:
+            # MONTH, not DAY: a few thousand bars per ticker would make thousands of tiny daily partitions
+            cfg.time_partitioning = self.bq.TimePartitioning(type_="MONTH", field=partition_field)
+        if cluster_fields:
+            cfg.clustering_fields = cluster_fields
+
+    def _describe(self, table: str, description: str) -> None:
+        if description:
+            t = self.client.get_table(table)
+            if t.description != description:
+                t.description = description
+                self.client.update_table(t, ["description"])
+
+    def load_rows(
+        self, table, rows, schema, *, truncate, description="", partition_field=None, cluster_fields=None
+    ):
+        cfg = self.bq.LoadJobConfig(
+            schema=self._schema(schema),
+            source_format=self.bq.SourceFormat.NEWLINE_DELIMITED_JSON,
+            write_disposition="WRITE_TRUNCATE" if truncate else "WRITE_APPEND",
+        )
+        self._shape(cfg, partition_field, cluster_fields)
+        if not rows and not truncate:
+            if not self.table_exists(table):  # create the empty table so later SQL can reference it
+                self.client.create_table(self.bq.Table(table, schema=self._schema(schema)))
+            self._describe(table, description)
+            return LoadResult(table, 0)
+        body = "\n".join(json.dumps(r, default=str) for r in rows).encode("utf-8")
+        job = self.client.load_table_from_file(io.BytesIO(body), table, job_config=cfg)
+        job.result()
+        self._describe(table, description)
+        return LoadResult(table, int(job.output_rows or 0), len(body))
+
+    def query(self, sql):
+        return [dict(r.items()) for r in self.client.query(sql).result()]
+
+    def query_to_table(self, sql, dest, *, description="", partition_field=None, cluster_fields=None):
+        cfg = self.bq.QueryJobConfig(destination=dest, write_disposition="WRITE_TRUNCATE")
+        self._shape(cfg, partition_field, cluster_fields)
+        job = self.client.query(sql, job_config=cfg)
+        job.result()
+        self._describe(dest, description)
+        return LoadResult(dest, self.count(dest), int(job.total_bytes_processed or 0))
+
+    def dry_run_bytes(self, sql):
+        job = self.client.query(sql, job_config=self.bq.QueryJobConfig(dry_run=True, use_query_cache=False))
+        return int(job.total_bytes_processed or 0)
+
+    def count(self, table):
+        return int(self.client.get_table(table).num_rows or 0)
+
+    def max_watermark(self, table):
+        if not self.table_exists(table):
+            return None
+        rows = self.query(f"SELECT MAX(_wm) AS m FROM `{table}`")
+        return None if rows[0]["m"] is None else float(rows[0]["m"])
+
+    def versions_since(self, table, pk, since):
+        if not self.table_exists(table):
+            return set()
+        cols = ", ".join(f"`{c}`" for c in pk)
+        rows = self.query(f"SELECT DISTINCT {cols}, _wm FROM `{table}` WHERE _wm >= {float(since)!r}")
+        return {(*(r[c] for c in pk), float(r["_wm"])) for r in rows}
+
+
+@dataclass
+class FakeWarehouse:
+    """In-memory stand-in for unit tests: load jobs and the few lookups the extractor runs. It cannot run
+    BigQuery SQL; the staging and mart SQL are covered by the integration test against real BigQuery."""
+
+    tables: dict[str, list[dict[str, Any]]] = field(default_factory=dict)
+    datasets: dict[str, str] = field(default_factory=dict)
+    loads: list[LoadResult] = field(default_factory=list)
+
+    def ensure_dataset(self, dataset_id, description):
+        self.datasets[dataset_id] = description
+
+    def table_exists(self, table):
+        return table in self.tables
+
+    def load_rows(
+        self, table, rows, schema, *, truncate, description="", partition_field=None, cluster_fields=None
+    ):
+        names = {n for n, _ in schema}
+        bad = [sorted(set(r) - names) for r in rows if set(r) - names]
+        if bad:
+            raise ValueError(f"{table}: columns not in schema: {bad[0]}")
+        if truncate or table not in self.tables:
+            self.tables[table] = []
+        self.tables[table].extend(json.loads(json.dumps(r, default=str)) for r in rows)
+        res = LoadResult(table, len(rows))
+        self.loads.append(res)
+        return res
+
+    def query(self, sql):
+        raise NotImplementedError("FakeWarehouse cannot run SQL")
+
+    def query_to_table(self, sql, dest, **_):
+        raise NotImplementedError("FakeWarehouse cannot run SQL")
+
+    def dry_run_bytes(self, sql):
+        return 0
+
+    def count(self, table):
+        return len(self.tables.get(table, []))
+
+    def max_watermark(self, table):
+        wms = [r["_wm"] for r in self.tables.get(table, [])]
+        return max(wms) if wms else None
+
+    def versions_since(self, table, pk, since):
+        return {
+            (*(r[c] for c in pk), float(r["_wm"])) for r in self.tables.get(table, []) if r["_wm"] >= since
+        }

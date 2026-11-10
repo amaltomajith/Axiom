@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: uv sync --extra actions
+      - run: uv sync --extra actions --extra data
       # Vercel installs from requirements.txt, so it must match uv.lock
       - run: |
           uv export --no-dev --no-hashes --no-emit-project -o /tmp/req.txt
