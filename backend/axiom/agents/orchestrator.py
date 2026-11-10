@@ -101,12 +101,14 @@ async def analyze(
     equity: float = 100_000.0,
     tracer: Tracer | None = None,
     memory_context: str = "",
+    today: str | None = None,
 ) -> AnalysisResult:
+    """`today` (YYYY-MM-DD) defaults to the current UTC date; evals pin it so replays match recordings."""
     tracer = tracer or Tracer()
     t = normalize_ticker(ticker)
     evidence = Evidence()
     degraded: list[str] = []
-    today = datetime.now(UTC).strftime("%Y-%m-%d")
+    today = today or datetime.now(UTC).strftime("%Y-%m-%d")
     tracer.emit("run_start", "system", ticker=t, equity=equity, date=today)
 
     try:

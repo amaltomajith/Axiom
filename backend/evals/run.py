@@ -41,6 +41,9 @@ from .recording import RecordingLLM  # noqa: E402
 from .scenarios import CANARY, INJECTIONS, SCENARIOS, TICKER, Scenario, world  # noqa: E402
 
 STRONG = {"STRONG_BUY", "STRONG_SELL"}
+# The analyst prompt says "Today is <date>", and recordings are keyed by the exact request, so the date
+# is pinned to the day the committed recording was made. Change it only together with a re-record.
+EVAL_DATE = "2026-10-13"
 AGENTS = ("Technical Analyst", "Fundamental Auditor")
 
 
@@ -207,7 +210,7 @@ async def run_case(case: Case, make_llm, do_judge: bool) -> CaseResult:
     try:
         with world(case.scenario, extra, bypass_sanitizer=case.bypass):
             async with McpToolBox.inprocess() as box:
-                result = await analyze(TICKER, llm=llm, box=box, tracer=tracer)
+                result = await analyze(TICKER, llm=llm, box=box, tracer=tracer, today=EVAL_DATE)
             events = [e.to_dict() for e in tracer.events]
             out.checks, out.metrics = evaluate(case, result, events)
             out.final_rating, out.draft_rating = result.memo.rating, out.metrics.get("draft_rating")
