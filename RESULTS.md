@@ -223,7 +223,8 @@ The deploy command it would use is sketched in `docs/gcp-architecture.md`. It wa
 | CI on `main` | success | GitHub run 42781046296 |
 | Pipeline run from `main` (manual dispatch) | success: 47/47 checks, 25 rows loaded, reconciled, 92.95 s | GitHub run 42781068087 |
 | Frontend production deploy (Vercel GitHub app) | success for `972b1f5` | Vercel deployment status |
-| API (`axiom-api`, deployed by Vercel CLI, not by git) | not redeployed. Its only change is the optional `today` parameter, which doesn't change behaviour. Live `/api/health` still reports `ok` on Postgres. | `curl https://axiom-api-three.vercel.app/api/health` |
+| API (`axiom-api`, deployed by Vercel CLI, not by git) | production deploy `dpl_DbNCibNuNshaNQcpQYFPs4rLrW93` is READY and aliased to `axiom-api-three.vercel.app`. `/api/health` reports `ok` with Postgres storage, auth required and a daily cap of 40. The bundle excludes `data_platform/` (`.vercelignore`). The only API-side change is the optional `today` parameter. | `vercel deploy --prod`; `curl .../api/health` |
+| Frontend after the last docs commit | production deploy of `60030ce`: success; site returns 200 | Vercel deployment status; `curl` |
 
 The weekday cron (14:00 UTC) is now live on `main`.
 
