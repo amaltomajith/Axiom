@@ -58,7 +58,7 @@ Tool-call traces and token counts are not tables. They live inside `runs.events_
 - Phase 0, baseline: DONE
 - Phase 1, BigQuery ELT warehouse: DONE (sandbox, no billing)
 - Phase 2, data quality and governance: DONE
-- Phase 3, scheduling: BUILT. A real run in GitHub waits on two steps only the owner can take (section 5).
+- Phase 3, scheduling: DONE (runs in GitHub Actions; the weekday cron starts once merged to `main`)
 - Phase 4, PySpark: DONE (Docker, public-domain data)
 - Phase 5, model: DONE (no useful edge found; see below)
 - Phase 6, Cloud Run staging: NOT DONE (needs billing; the container was checked locally)
@@ -116,7 +116,11 @@ All on 2026-11-10, project `axiom-data-514305` (BigQuery sandbox, location US), 
 | Item | Result | Evidence |
 |---|---|---|
 | CI on the pushed branch | success, 83 s | GitHub run 42774286437 |
-| First workflow run (push trigger) | failed as expected: "AXIOM_SOURCE_DATABASE_URL is not set". The secret isn't stored yet, so the job stopped before contacting GCP or Neon. | GitHub run 42774286201 |
+| First workflow run (push trigger) | failed as expected: "AXIOM_SOURCE_DATABASE_URL is not set". The secret wasn't stored yet, so the job stopped before contacting GCP or Neon. | GitHub run 42774286201 |
+| Owner steps | the owner bound `roles/iam.workloadIdentityUser` on the loader to the repo, and stored the Neon secret | `gcloud ... add-iam-policy-binding`, `gh secret set` (run by the owner, before 07:59Z) |
+| First real run in GitHub | **exit 3, marts not built**: `load_freshness` failed on `raw.runs` ("newest load 05:58, limit 120 minutes"). The pipeline was healthy: no analysis had run since the 05:58 load, so the incremental table got 0 new rows and looked stale. It was a check bug. 46/47 passed, 25 rows loaded, 3,000 price bars fetched on the runner with 0 failed tickers, reconciled, 99.21 s. BigQuery: 34 jobs, all by `axiom-elt-loader`, 0 errors. | GitHub run 42779209087 (07:59Z); `INFORMATION_SCHEMA.JOBS_BY_PROJECT` |
+| Fix | `load_freshness` now takes the newest load across all raw tables. Snapshot tables reload every run, so a quiet day passes and a run that loaded nothing still fails. The real-BigQuery DQ test still passes: freshness fails when judged 3 h later, passes now (323.2 s). | commit `2cccb71`; `pytest tests/test_data_quality_bq.py` |
+| Second real run in GitHub | **success**: 47/47 checks, all 4 marts built, 25 rows loaded, 3,000 price bars, reconciled, 98.29 s. BigQuery: 38 jobs by `axiom-elt-loader`, 0 errors. | GitHub run 42779632714 (08:03Z) |
 | Workload identity pool `github` + provider `axiom-repo` | created; the condition limits it to this repo's id, this workflow file, and schedule/dispatch/push events | `gcloud iam workload-identity-pools ... create` |
 | The same run as the loader, locally | passes (Phase 2: 39 jobs as `axiom-elt-loader`, 0 errors) | `--impersonate`, job history |
 | Summary step | renders from a real run report | local run of the step's script on the dev report |
@@ -241,11 +245,7 @@ Google's published sandbox quotas (storage and monthly query volume) were **not*
 
 ## 5. Not done and why
 
-- **Phase 3, first real run in GitHub: waiting on the owner.** Two steps were blocked for me as permission and secret changes, so they need the owner:
-  1. `gcloud iam service-accounts add-iam-policy-binding axiom-elt-loader@axiom-data-514305.iam.gserviceaccount.com --project axiom-data-514305 --role roles/iam.workloadIdentityUser --member principalSet://iam.googleapis.com/projects/103613789288/locations/global/workloadIdentityPools/github/attribute.repository_id/1176257246`
-  2. `gh secret set AXIOM_SOURCE_DATABASE_URL --repo amaltomajith/Axiom` (paste the read-only URL from `backend/.env.data`).
-
-  GitHub only runs a schedule from the default branch, so the weekday cron starts when this branch is merged to `main`. Until then it runs on manual dispatch or a push that changes the workflow file.
+- **The weekday cron hasn't fired yet.** GitHub only runs schedules from the default branch, and this branch isn't merged to `main` (merging redeploys the app, so that's the owner's call). The two real runs above used the branch's push trigger, which runs the same job.
 - Cloud Run (Phase 6), Cloud Scheduler and Secret Manager need billing; the human chose the sandbox, so these will be "Not done".
 
 ## 6. Honest limits
@@ -264,9 +264,8 @@ Each sentence is backed by a measurement above.
 
 1. Built a config-driven, idempotent ELT pipeline from production Postgres into BigQuery (raw, staging and mart layers) using batch load jobs in the free sandbox. Repeat runs load 0 duplicate keys, and source and warehouse row counts match on every table.
 2. Wrote 10 SQL data-quality checks that gate the analytics tables. A test that injects one bad row per rule fails exactly the 9 expected check results, and the gate caught a real stale-data bug during development.
-3. Set up least-privilege GCP access with a loader and a read-only dashboard service account. A full pipeline run as the loader completed all 39 jobs with 0 errors. The reader is refused on raw data, on staging data and on writes.
+3. Scheduled the pipeline in GitHub Actions with keyless Workload Identity Federation into a least-privilege loader account. A real run completed with 47/47 checks and 38 BigQuery jobs, 0 errors. A read-only dashboard account is refused on raw data, on staging data and on writes.
 4. Rewrote Axiom's technical indicators in PySpark (window functions, plus `applyInPandas` for Wilder RSI) and matched the pandas version row for row on up to 20M rows: identical NULLs, and a max relative difference of 1.4e-8 (leaving out 2 zero-volatility rows where pandas has rounding residue). Benchmarked honestly: on one 8-core machine, pandas was 3 to 54 times faster.
 5. Built a time-split, embargoed classifier with baselines, block-bootstrap intervals, leakage tests (including a positive control) and a BigQuery ML twin that agrees on 96.9% of test predictions. Reported that it doesn't beat a majority-class baseline on accuracy.
 6. Chose integer-range partitioning so BigQuery's 60-day sandbox partition expiry can't drop price history. A 2026-only query then scans 85% fewer bytes (169,128 vs 1,093,500).
 
-The scheduled GitHub Actions run is deliberately left out of this list until its first real run succeeds (section 5).
