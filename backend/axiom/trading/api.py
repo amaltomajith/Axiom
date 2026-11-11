@@ -4,6 +4,10 @@ Control rights: with `AXIOM_API_TOKEN` set, a POST must send `Authorization: Bea
 configured, a POST is allowed only from this machine directly: a loopback peer and no proxy or tunnel headers
 (a Cloudflare quick tunnel also connects from loopback, but adds `cf-connecting-ip`). So a laptop demo works
 out of the box, and a public URL is read-only until a token is set.
+
+Guest actions: with `TRADER_GUEST_ACTIONS=true`, anyone may also play one of the named scenarios and ask the
+desk for a review. A scenario runs on the simulator and a review orders nothing (it is capped per hour), so
+neither can touch the broker. Everything else still needs control rights.
 """
 
 from __future__ import annotations
@@ -37,6 +41,17 @@ def require_control(request: Request) -> None:
     if peer in LOOPBACK and not any(h in request.headers for h in FORWARD_HEADERS):
         return
     raise HTTPException(403, "Set AXIOM_API_TOKEN to control the trader from another machine")
+
+
+def control_or_guest(request: Request) -> bool:
+    """True with full control rights, False for a guest when guest actions are on; otherwise refuse."""
+    try:
+        require_control(request)
+        return True
+    except HTTPException:
+        if get_settings().trader_guest_actions:
+            return False
+        raise
 
 
 class KillIn(BaseModel):
@@ -208,17 +223,23 @@ def build_router(svc: TraderService) -> APIRouter:
     async def reject(pending_id: str):
         return await guard(svc.reject)(pending_id)
 
-    @r.post("/desk/review", dependencies=ctl)
+    guest = [Depends(control_or_guest)]
+
+    @r.post("/desk/review", dependencies=guest)
     async def desk_review(body: ReviewIn):
         return await guard(svc.review_now)(body.symbol)
 
-    @r.post("/replay", dependencies=ctl)
-    async def start_replay(body: ReplayIn | None = None):
+    @r.post("/replay")
+    async def start_replay(body: ReplayIn | None = None, full: bool = Depends(control_or_guest)):
         b = body or ReplayIn()
+        if not full and b.scenario is None:
+            raise HTTPException(
+                403, "Visitors can play the three scenarios; a custom replay needs the API token"
+            )
         job = await guard(svc.start_replay)(b.symbols, b.bars, b.delay, b.scenario)
         return job.to_dict()
 
-    @r.post("/replays/{rid}/stop", dependencies=ctl)
+    @r.post("/replays/{rid}/stop", dependencies=guest)
     async def stop_replay(rid: str):
         return await guard(svc.stop_replay)(rid)
 

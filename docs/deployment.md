@@ -6,6 +6,23 @@ trader does not run, since `TRADER_ENABLED` is ignored on serverless.
 
 ## 0. Autopilot demo: one laptop, one port, a free public URL
 
+The short way (Git Bash, from the repo root):
+
+```bash
+npm run build:selfhost
+scripts/live-demo.sh start      # API + cockpit on :8000 and a quick tunnel, each in a detached restart loop
+scripts/live-demo.sh url        # the public URL; it changes whenever the tunnel restarts
+scripts/live-demo.sh status     # loops, storage (must say sqlite), and the URL
+scripts/live-demo.sh stop
+```
+
+It runs `TRADER_BROKER=alpaca`, `TRADER_BRAIN=desk`, BTC/USD and ETH/USD, Supervised, with `TRADER_GUEST_ACTIONS=true`,
+and forces `DATABASE_URL` empty so the demo never touches a production database named in `backend/.env`. Keys and
+`AXIOM_API_TOKEN` come from `backend/.env`. Logs: `backend/.cache/autopilot-live.log` and `backend/.cache/tunnel.log`.
+Keep the laptop awake and plugged in: sleep stops both.
+
+The same by hand:
+
 ```bash
 npm run build:selfhost        # Vite build whose API calls go to its own origin
 cd backend
@@ -23,6 +40,10 @@ What a visitor gets, and does not:
   direct requests from the same machine may write, and a request carrying tunnel or proxy headers (`cf-connecting-ip`,
   `x-forwarded-for`, `forwarded`, `x-real-ip`, `cf-ray`) never counts as local. Set the token anyway.
 - To drive it yourself through the URL, open the key icon in the header and paste the token. It stays in that browser.
+- **Guest actions** (`TRADER_GUEST_ACTIONS=true`): a visitor without the token may also play the three named
+  scenarios and press Review now. A scenario runs on the simulator and a review orders nothing (six per hour at
+  most), so neither touches the broker. Kill, resume, approvals, autonomy, the red team and custom replays still need
+  the token. Give the token only to people who should be able to approve trades or press the kill switch.
 - **No server-sent events.** Cloudflare documents that quick tunnels do not support SSE. The cockpit notices the
   stream is down and polls the live panels every 5 seconds instead. For the smoothest demo, present from
   `http://localhost:8000` and share the tunnel URL for judges to follow along.

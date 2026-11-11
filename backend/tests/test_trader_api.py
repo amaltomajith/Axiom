@@ -253,3 +253,25 @@ def test_desk_reviews_are_readable_after_a_restart_and_review_now_is_guarded():
     off = c2.post("/api/trader/desk/review", json={"symbol": "BTC/USD"}, headers=AUTH)
     assert off.status_code == 400 and "trading desk is off" in off.json()["detail"]
     assert "not_taken" in c2.get("/api/trader/calibration").json()
+
+
+def test_guest_actions_allow_scenarios_and_reviews_but_nothing_that_touches_the_broker(monkeypatch):
+    c, _ = client()
+    with c:
+        assert (
+            c.post("/api/trader/replay", json={"scenario": "breakout"}).status_code == 401
+        )  # off by default
+        monkeypatch.setenv("TRADER_GUEST_ACTIONS", "true")
+        get_settings.cache_clear()
+        assert c.post("/api/trader/replay", json={"bars": 400}).status_code == 403  # only the named scenarios
+        job = c.post("/api/trader/replay", json={"scenario": "breakout"})
+        assert job.status_code == 200 and job.json()["scenario"] == "breakout"
+        assert c.post(f"/api/trader/replays/{job.json()['id']}/stop").status_code == 200
+        off = c.post("/api/trader/desk/review", json={"symbol": "BTC/USD"})
+        assert (
+            off.status_code == 400 and "trading desk is off" in off.json()["detail"]
+        )  # allowed, desk is off here
+        for path in ("/api/trader/kill", "/api/trader/resume", "/api/trader/redteam", "/api/trader/stop"):
+            assert c.post(path).status_code == 401, path
+        assert c.post("/api/trader/autonomy", json={"level": "AUTONOMOUS"}).status_code == 401
+        assert c.post("/api/trader/orders/p-1/approve").status_code == 401

@@ -109,6 +109,11 @@ ETH/USD and equities run in the Time Machine.
 
 ## Demo on one port with a public URL
 
+`scripts/live-demo.sh start` does all of it (build the cockpit first with `npm run build:selfhost`): the API and
+cockpit on port 8000 plus a free Cloudflare quick tunnel, each restarted if it dies, and it prints the public URL.
+Visitors can watch everything, open every review, play the three scenarios and press Review now; approvals and the
+kill switch need the token. See [docs/deployment.md](docs/deployment.md). By hand:
+
 ```bash
 npm run build:selfhost                                              # the frontend, calling the API on its own origin
 cd backend && SERVE_FRONTEND=true AXIOM_API_TOKEN=<long random> DATABASE_URL= uv run python -m axiom.api

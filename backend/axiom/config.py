@@ -93,6 +93,8 @@ class Settings(BaseSettings):
     trader_max_llm_calls_per_hour: int = 20
     trader_max_desk_runs_per_hour: int = 6  # each run is one full four-agent review of a candidate entry
     trader_desk_hold: str = "veto"  # what a HOLD rating does to an entry: veto | half
+    # let visitors without the token play the scenarios and ask for a desk review (no broker effect)
+    trader_guest_actions: bool = False
 
     # --- server
     # Bearer token for mutating endpoints; REQUIRED when real actions are enabled.
