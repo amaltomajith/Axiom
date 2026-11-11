@@ -14,6 +14,7 @@ import pandas as pd
 
 from axiom.quant.backtest import apply_strategy, make_verdict
 
+from .contracts import calibration
 from .replay import ReplayResult
 from .risk import RULE_NAMES
 from .strategies import DESCRIPTIONS, TRADING_STRATEGIES
@@ -138,6 +139,7 @@ def build_report(res: ReplayResult, *, title: str = "Axiom Autopilot backtest") 
             "tournament_changes": kinds.get("tournament", 0),
         },
         "per_symbol": per_symbol,
+        "contracts": calibration(res.ledger.contracts()),
         "limits": eng.kernel.limits.to_dict(),
         "assumptions": {
             "fills": "market orders fill at the next bar's open; stops fill at the stop or the open if it gapped",
@@ -151,6 +153,16 @@ def build_report(res: ReplayResult, *, title: str = "Axiom Autopilot backtest") 
         "journal_head": journal[-1].hash if journal else None,
         "journal_entries": len(journal),
     }
+
+
+def _contracts_line(c: dict) -> str:
+    if not c.get("n"):
+        return "- No contract was graded in this run."
+    grades = ", ".join(f"{g} {n}" for g, n in sorted(c["grades"].items()))
+    return (
+        f"- {c['n']} contracts graded (grades: {grades}). Brier score {c['brier']:.3f} against 0.25 for a coin "
+        f"flip; stated confidence averaged {c['mean_confidence']:.0%} and {c['win_rate']:.0%} ended in profit."
+    )
 
 
 def _pct(x: float | None) -> str:
@@ -228,6 +240,10 @@ def render_markdown(rep: dict) -> str:
         f"- Stop-losses hit: {r['stop_outs']}. Daily-loss halts: {r['daily_loss_halts']}. "
         f"Tournament leadership changes: {r['tournament_changes']}.",
         f"- Entries the risk kernel blocked, by rule: {blocked}.",
+        "",
+        "## Trade contracts",
+        "",
+        _contracts_line(rep.get("contracts") or {}),
         "",
         "## Per symbol",
         "",

@@ -17,6 +17,7 @@ from axiom.config import get_settings
 
 from .brain import Brain, RuleBrain
 from .broker.sim import SimBroker
+from .contracts import ContractBook
 from .engine import Engine, EngineConfig, utc_day
 from .ledger import MemoryLedger
 from .models import Autonomy, Bar, new_id
@@ -137,7 +138,8 @@ async def run_replay(
     ledger = MemoryLedger(session)
     engine = build_engine(
         list(books), session=session, broker=broker, ledger=ledger, brain=brain, autonomy=autonomy,
-        bar_seconds=bar_seconds, periods_per_year=periods, contracts=contracts, ladder=ladder,
+        bar_seconds=bar_seconds, periods_per_year=periods,
+        contracts=contracts if contracts is not None else ContractBook(), ladder=ladder,
     )  # fmt: skip
     engine.set_books(books)
     bench = equal_weight_benchmark(books, start_ts, start_cash)

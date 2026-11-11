@@ -18,10 +18,12 @@ import pandas as pd
 from axiom.config import get_settings
 from axiom.data import market
 
+from .autonomy import AutonomyLadder
 from .brain import Brain, RuleBrain
 from .broker.alpaca import AlpacaPaperBroker
 from .broker.base import Broker, BrokerError
 from .broker.sim import SimBroker
+from .contracts import ContractBook
 from .data import TIMEFRAME_SECONDS, fetch_intraday
 from .engine import KILL_FILE, Engine
 from .ledger import StoreLedger
@@ -110,6 +112,7 @@ class Trader:
             [x.name for x in symbols], session="live", broker=broker, ledger=ledger,
             brain=brain or make_brain(s.trader_brain), autonomy=s.trader_autonomy_start,  # type: ignore[arg-type]
             bar_seconds=bar_s, periods_per_year=periods_per_year(symbols, bar_s), kill_file=KILL_FILE,
+            contracts=ContractBook(), ladder=AutonomyLadder(),
         )  # fmt: skip
         if fetch is None:
             if tf == "1Day":

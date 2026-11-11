@@ -32,12 +32,19 @@ def entry(intent: OrderIntent, v: RiskVerdict, dec: Decision, equity: float) -> 
     strat = intent.strategy or "an unnamed strategy"
     desc = DESCRIPTIONS.get(strat, "")
     conf = f" Stated confidence that it ends in profit: {intent.confidence:.0%}." if intent.confidence else ""
+    plan = ""
+    if dec.expected_move_pct is not None and dec.horizon_bars:
+        plan = f" Contract: expects about {pct(dec.expected_move_pct)} within {dec.horizon_bars} bars, or it exits."
     return (
         f"Bought {qty(v.qty)} {intent.symbol} at about {money(v.price)} ({money(v.notional)}). "
         f"{who} picked {strat}{f' ({desc})' if desc else ''}. Why: {dec.reason} "
         f"The stop-loss sits at {money(intent.stop_price)}; if it is hit the loss is about {money(v.risk_amount)}, "
-        f"{v.risk_amount / equity:.2%} of equity. The risk kernel sized this trade, not the brain.{conf}"
+        f"{v.risk_amount / equity:.2%} of equity. The risk kernel sized this trade, not the brain.{conf}{plan}"
     )
+
+
+def veto(dec: Decision) -> str:
+    return f"Did not buy {dec.symbol}. {dec.reason.rstrip('.')}. The rule brain alone would have entered."
 
 
 def exit_(o: Order, f: dict) -> str:

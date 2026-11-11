@@ -289,10 +289,17 @@ class Engine:
             dec = await self.brain.decide(view)
             decisions.append(dec)
             self.last_decisions[sym] = dec.model_dump()
+            self._journal_flags(sym, dec, now)
             if dec.action in ("hold", "stay_flat"):
                 if dec.action == "stay_flat":
                     self.st["last_block"].pop(sym, None)
+                    if dec.veto and self.st.setdefault("last_veto", {}).get(sym) != dec.strategy:
+                        self.st["last_veto"][sym] = dec.strategy
+                        self.journal("veto", jt.veto(dec), ts=now, symbol=sym,
+                                     facts={"strategy": dec.strategy, "confidence": dec.confidence,
+                                            "source": dec.source})  # fmt: skip
                 continue
+            self.st.setdefault("last_veto", {}).pop(sym, None)
             if dec.action == "exit":
                 if pos is not None:
                     await self._exit(sym, dec.reason, now)
@@ -306,6 +313,9 @@ class Engine:
                 intent, acct, self._ctx(sym, price, now, acct, data_age=now - book.ts[i])
             )
             if not verdict.approved:
+                if verdict.blocked_by == "R12" and self.level == "SHADOW" and self.contracts is not None:
+                    self.contracts.open_shadow(self, intent, verdict, dec, now)
+                    continue
                 if self.st["last_block"].get(sym) != verdict.blocked_by:
                     self.st["last_block"][sym] = verdict.blocked_by
                     self.journal("blocked", jt.blocked(intent, verdict), ts=now, symbol=sym,
@@ -362,10 +372,31 @@ class Engine:
             "entry_price": v.price, "stop": intent.stop_price, "qty": v.qty, "source": intent.source,
             "confidence": intent.confidence, "bench_at_entry": self.benchmark_value,
         }  # fmt: skip
-        self.journal("entry", jt.entry(intent, v, dec, acct.equity), ts=now, symbol=intent.symbol,
-                     facts={**_vfacts(intent, v), "order_id": order.id, "contract_id": intent.contract_id})  # fmt: skip
+        facts = {**_vfacts(intent, v), "order_id": order.id, "contract_id": intent.contract_id,
+                 "equity": round(acct.equity, 2), "expected_move_pct": dec.expected_move_pct,
+                 "horizon_bars": dec.horizon_bars}  # fmt: skip
+        text = jt.entry(intent, v, dec, acct.equity)
+        narrate = getattr(self.brain, "narrate", None)
+        if narrate is not None and dec.source == "llm":
+            plain, accepted, bad = await narrate(text, facts)
+            facts["template"] = text
+            facts["rewrite"] = "accepted" if accepted else ("discarded" if bad else "not used")
+            if bad:
+                facts["rewrite_unsupported"] = bad
+            text = plain
+        self.journal("entry", text, ts=now, symbol=intent.symbol, facts=facts)
         self.emit("order", order=order.model_dump())
         return order
+
+    def _journal_flags(self, sym: str, dec: Decision, now: float) -> None:
+        seen: list[str] = self.st.setdefault("flags_seen", [])
+        for f in dec.flags:
+            key = f"{sym}|{f}"
+            if key in seen:
+                continue
+            seen.append(key)
+            del seen[:-100]
+            self.journal("flag", f, ts=now, symbol=sym, facts={"source": dec.source})
 
     def _remember_exit(self, sym: str, reason: str) -> None:
         self.st["meta"].setdefault(sym, {})["exit_reason"] = reason
@@ -407,7 +438,7 @@ class Engine:
             "strategy": meta.get("strategy"), "reason": reason, "contract_id": meta.get("contract_id"),
             "held_seconds": None if meta.get("entry_ts") is None else now - meta["entry_ts"],
         }  # fmt: skip
-        kind = "stop" if "stop" in reason else "exit"
+        kind = "stop" if reason.startswith("stop-loss") else "exit"
         self.journal(kind, jt.exit_(o, facts), ts=now, symbol=o.symbol, facts=facts)
         if self.contracts is not None and meta.get("contract_id"):
             self.contracts.close(self, meta["contract_id"], facts, now)

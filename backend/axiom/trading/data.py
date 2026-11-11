@@ -7,6 +7,7 @@ Intraday bars for the live loop come from Alpaca's market data API (crypto needs
 from __future__ import annotations
 
 import asyncio
+import re
 from datetime import UTC, datetime, timedelta
 
 import pandas as pd
@@ -90,3 +91,92 @@ async def fetch_intraday(
     now = pd.Timestamp(datetime.now(UTC)).tz_localize(None)
     step = pd.Timedelta(seconds=TIMEFRAME_SECONDS[timeframe])
     return df[df.index + step <= now].tail(limit)
+
+
+# Instructions aimed at a trading agent, on top of the research app's generic injection patterns.
+_TRADER_INJECTION = re.compile(
+    "|".join(
+        f"(?:{p})"
+        for p in [
+            r"\bignore (all |any |the |your )?(rules|limits|risk|guardrails|stops?|instructions)\b",
+            r"\b(disable|turn off|remove|bypass|override) (the |your |all )?"
+            r"(stop|stops|stop-loss|kill switch|risk|limits?|kernel|guardrails)\b",
+            r"\b(buy|sell|short) (\d[\d,]*|all|everything|max(imum)?)\s*(shares|units|coins|contracts|lots)?"
+            r".{0,20}\b(now|immediately|at once)\b",
+            r"\b(buy|sell) \d[\d,]{3,} (shares|units|coins)\b",
+            r"\b(all[- ]in|max(imum)? leverage|use (full )?margin)\b",
+            r"\b(ai|agents?|bots?|assistants?|models?)\b.{0,30}\bmust\b",
+        ]
+    ),
+    re.IGNORECASE,
+)
+
+
+def looks_like_trader_injection(text: str) -> bool:
+    return bool(_TRADER_INJECTION.search(text or ""))
+
+
+def _news_item(
+    headline: str | None, summary: str | None, source: str | None, date: str | None
+) -> dict | None:
+    from axiom.security import sanitize_untrusted
+
+    h, bad1 = sanitize_untrusted(headline, 200)
+    s, bad2 = sanitize_untrusted(summary, 280)
+    if not h:
+        return None
+    flagged = bad1 or bad2 or looks_like_trader_injection(f"{h} {s}")
+    return {
+        "headline": f"[REDACTED: suspected prompt injection from {source or 'unknown source'}]"
+        if flagged
+        else h,
+        "summary": "" if flagged else s,
+        "source": source,
+        "date": date,
+        "injection_suspected": flagged,
+        "excerpt": h[:80] if flagged else None,  # for the journal flag only; never shown to the model
+    }
+
+
+def _alpaca_news_sync(sym: Symbol, limit: int, hours: int, key: str, secret: str) -> list[dict]:
+    from alpaca.data.historical.news import NewsClient
+    from alpaca.data.requests import NewsRequest
+
+    req = NewsRequest(
+        symbols=sym.alpaca_position if sym.is_crypto else sym.name,
+        start=datetime.now(UTC) - timedelta(hours=hours),
+        limit=limit,
+    )
+    news = NewsClient(key, secret).get_news(req)
+    out = []
+    for a in news.data.get("news", [])[:limit]:
+        item = _news_item(a.headline, a.summary, a.source, a.created_at.isoformat() if a.created_at else None)
+        if item:
+            out.append(item)
+    return out
+
+
+async def fetch_news(
+    sym: Symbol, *, key: str | None = None, secret: str | None = None, limit: int = 8, hours: int = 48
+) -> list[dict]:
+    """Recent headlines, sanitized: anything that looks like an instruction is redacted and flagged.
+    Alpaca News with keys; otherwise the research app's news fallback chain. Never raises."""
+    try:
+        if key and secret:
+            return await asyncio.to_thread(_alpaca_news_sync, sym, limit, hours, key, secret)
+        from axiom.data.news import get_news_sentiment
+
+        res = await get_news_sentiment(
+            sym.yahoo if sym.is_crypto else sym.name, days=max(1, hours // 24), limit=limit
+        )
+        out = []
+        for a in res.get("items", []):
+            item = _news_item(a.get("headline"), a.get("summary"), a.get("source"), a.get("date"))
+            if item:
+                item["injection_suspected"] = item["injection_suspected"] or bool(
+                    a.get("injection_suspected")
+                )
+                out.append(item)
+        return out
+    except Exception:
+        return []

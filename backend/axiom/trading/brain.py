@@ -1,7 +1,7 @@
 """Brains decide what to do with one symbol at one bar. They never size, never place orders.
 
-`RuleBrain` trades the tournament's best qualified strategy. `LLMBrain` (added with the journal) may only
-choose among qualified strategies or stay flat, and falls back to `RuleBrain` on any failure.
+`RuleBrain` trades the tournament's best qualified strategy. `LLMBrain` (`llm_brain.py`) may only choose
+among qualified strategies or stay flat, and falls back to `RuleBrain` on any failure.
 """
 
 from __future__ import annotations
@@ -29,6 +29,8 @@ class Decision(BaseModel):
     thesis: str | None = None
     expected_move_pct: float | None = None
     horizon_bars: int | None = None
+    veto: bool = False  # the LLM declined an entry the rule brain would have taken
+    flags: list[str] = []  # things the journal must record: redacted headlines, discarded thesis numbers
 
 
 @dataclass
@@ -86,6 +88,5 @@ def rule_decision(view: MarketView) -> Decision:
             f"{best.strategy} ranked first with Sharpe {best.sharpe:.2f} on the trailing window "
             f"(buy-and-hold {bench:.2f}) and is signalling long."
         ),
-        horizon_bars=20,
         expected_move_pct=round(100 * 2 * view.atr / view.price, 2) if view.price else None,
     )
