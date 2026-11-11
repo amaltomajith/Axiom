@@ -1,11 +1,12 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import { FAQ, MCP_TOOLS, snapshot } from '@/landing/data';
+import { FAQ, MCP_TOOLS, REPO, snapshot } from '@/landing/data';
 import { Features } from '@/landing/Features';
 import { FinalCta, Footer } from '@/landing/Footer';
+import { Gateway } from '@/landing/Gateway';
 import { Hero } from '@/landing/Hero';
 import { Honest } from '@/landing/Honest';
 import { Modes } from '@/landing/Modes';
@@ -17,6 +18,7 @@ const dir = resolve(__dirname, '../landing');
 const sources = readdirSync(dir)
   .filter(f => f.endsWith('.tsx'))
   .map(f => readFileSync(resolve(dir, f), 'utf-8'));
+const joined = sources.join(String.fromCharCode(10));
 const page = readFileSync(resolve(__dirname, '../pages/Landing.tsx'), 'utf-8');
 
 describe('landing data is real, not typed in', () => {
@@ -47,14 +49,31 @@ describe('landing sections', () => {
     expect(screen.getByRole('img', { name: /cockpit/ })).toHaveAttribute('src', '/landing/cockpit.jpg');
   });
 
-  it('nav links only to sections that exist on the page', () => {
+  it('nav menus open, close on Escape, and link only to sections that exist or to the project', () => {
     wrap(<Nav />);
     const nav = screen.getByRole('navigation', { name: 'Page' });
-    const ids = within(nav)
+    for (const label of ['Product', 'Learn']) fireEvent.click(within(nav).getByRole('button', { name: label }));
+    const hrefs = within(nav)
       .getAllByRole('link')
-      .map(a => a.getAttribute('href')?.slice(1));
-    expect(ids.length).toBeGreaterThanOrEqual(3);
-    for (const id of ids) expect(sources.join('\n')).toContain(`id="${id}"`);
+      .map(a => a.getAttribute('href') ?? '');
+    expect(hrefs.filter(h => h.startsWith('#')).length).toBeGreaterThanOrEqual(5);
+    for (const h of hrefs) {
+      if (h.startsWith('#')) expect(joined).toContain(`id="${h.slice(1)}"`);
+      else expect(h.startsWith(REPO)).toBe(true);
+    }
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(within(nav).getByRole('button', { name: 'Learn' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('gateway cards lead somewhere on the page or to the project, never into the app', () => {
+    wrap(<Gateway />);
+    const links = screen.getAllByRole('link');
+    expect(links).toHaveLength(6);
+    for (const a of links) {
+      const h = a.getAttribute('href') ?? '';
+      if (h.startsWith('#')) expect(joined).toContain(`id="${h.slice(1)}"`);
+      else expect(h.startsWith(REPO)).toBe(true);
+    }
   });
 
   it('every link into the app uses the same words', () => {
@@ -95,7 +114,7 @@ describe('landing sections', () => {
         <Footer />
       </>,
     );
-    expect(screen.getByRole('link', { name: /Start on paper/ })).toHaveAttribute('href', '/app');
+    for (const a of screen.getAllByRole('link', { name: /Start on paper/ })) expect(a).toHaveAttribute('href', '/app');
     expect(screen.getByText(/not financial advice/i)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\bv\d+\.\d+/);
   });

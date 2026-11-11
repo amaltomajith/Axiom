@@ -27,11 +27,11 @@ export function Trust() {
           <StartLink className="mt-8" />
         </div>
 
-        <div aria-hidden className="relative mx-auto aspect-square w-full max-w-[560px] lg:max-w-none">
-          <Globe tilt={0.18} speed={0.035} count={9000} />
+        <div className="relative mx-auto aspect-square w-full max-w-[560px] lg:-mx-[12%] lg:w-[124%] lg:max-w-none">
+          <Globe tilt={0.3} speed={0.04} radius={0.44} facing={-20} />
         </div>
 
-        <ul className="divide-y divide-white/[0.07]">
+        <ul className="relative z-10 divide-y divide-white/[0.07]">
           {TRAITS.map(({ icon: Icon, title, note }, i) => (
             <motion.li
               key={title}

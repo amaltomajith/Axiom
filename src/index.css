@@ -272,7 +272,7 @@
   }
   /* Headlines: white at the top fading to cool silver. */
   .lp-silver {
-    background-image: linear-gradient(180deg, hsl(0 0% 100%) 25%, hsl(215 22% 68%));
+    background-image: linear-gradient(180deg, hsl(0 0% 100%) 18%, hsl(210 30% 86%) 52%, hsl(214 18% 60%) 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
@@ -314,4 +314,103 @@
     border-top: 2px solid hsl(var(--primary) / 0.9);
     box-shadow: 0 -18px 60px -24px hsl(var(--primary) / 0.75), inset 0 18px 40px -28px hsl(var(--primary) / 0.5);
   }
+  /* A bright bar of light along the lit edge. */
+  .lp-lit::before {
+    content: '';
+    position: absolute;
+    z-index: 1;
+    top: -2px;
+    left: 10%;
+    right: 10%;
+    height: 3px;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, transparent, hsl(199 95% 70%) 20%, hsl(0 0% 100%) 50%, hsl(199 95% 70%) 80%, transparent);
+    box-shadow: 0 0 18px 2px hsl(var(--primary) / 0.9), 0 0 60px 8px hsl(var(--primary) / 0.45);
+    pointer-events: none;
+  }
+  /* The floating glass pill in the top bar and its menus. */
+  .lp-navpill {
+    border: 1px solid hsl(0 0% 100% / 0.1);
+    background: linear-gradient(180deg, hsl(222 24% 13% / 0.7), hsl(222 30% 6% / 0.7));
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.09), 0 12px 40px -14px hsl(var(--primary) / 0.5), 0 0 0 1px hsl(var(--primary) / 0.05);
+    -webkit-backdrop-filter: blur(16px) saturate(140%);
+    backdrop-filter: blur(16px) saturate(140%);
+  }
+  .lp-menu {
+    border: 1px solid hsl(0 0% 100% / 0.1);
+    background:
+      radial-gradient(120% 60% at 50% 0%, hsl(var(--primary) / 0.1), transparent 60%),
+      linear-gradient(180deg, hsl(222 24% 11% / 0.9), hsl(222 30% 5% / 0.94));
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.08), 0 30px 80px -20px hsl(222 60% 2% / 0.95), 0 0 70px -24px hsl(var(--primary) / 0.5);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    backdrop-filter: blur(22px) saturate(140%);
+  }
+  /* A small glowing square for icons. */
+  .lp-icon {
+    border: 1px solid hsl(var(--primary) / 0.3);
+    background: linear-gradient(180deg, hsl(var(--primary) / 0.18), hsl(var(--primary) / 0.04));
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.1), 0 0 22px -6px hsl(var(--primary) / 0.6);
+  }
+  /* Link cards: quiet by default, lit on hover; one is lit all the time. */
+  .lp-card {
+    border: 1px solid hsl(0 0% 100% / 0.08);
+    background: linear-gradient(180deg, hsl(222 24% 9% / 0.85), hsl(222 30% 5% / 0.85));
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.05);
+  }
+  .lp-card:hover {
+    border-color: hsl(var(--primary) / 0.4);
+    box-shadow: inset 0 1px 0 hsl(0 0% 100% / 0.08), 0 0 40px -12px hsl(var(--primary) / 0.55);
+    transform: translateY(-2px);
+  }
+  .lp-card-lit {
+    border: 1px solid hsl(var(--primary) / 0.55);
+    background:
+      radial-gradient(120% 120% at 0% 0%, hsl(var(--primary) / 0.32), transparent 60%),
+      linear-gradient(180deg, hsl(212 60% 14%), hsl(222 40% 7%));
+    box-shadow: inset 0 1px 0 hsl(199 95% 80% / 0.25), 0 0 50px -10px hsl(var(--primary) / 0.6);
+  }
+  .lp-card-lit:hover { transform: translateY(-2px); }
+  /* A pool of light on the floor, for things that hover. */
+  .lp-floor {
+    border-radius: 50%;
+    background: radial-gradient(50% 50% at 50% 50%, hsl(var(--primary) / 0.4), hsl(var(--primary) / 0.08) 55%, transparent 72%);
+    filter: blur(6px);
+  }
+  /* Falling columns of light points behind the hero. */
+  .lp-stream {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    background: repeating-linear-gradient(to bottom, hsl(var(--primary) / 0.35) 0 2px, transparent 2px 9px);
+    -webkit-mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+    mask-image: linear-gradient(to bottom, transparent, black 30%, black 70%, transparent);
+    overflow: hidden;
+  }
+  .lp-stream::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    width: 2px;
+    height: 34%;
+    background: linear-gradient(to bottom, transparent, hsl(199 95% 72% / 0.8), hsl(199 100% 92%));
+    box-shadow: 0 0 8px hsl(var(--primary) / 0.8);
+    animation: lp-fall var(--d, 6s) linear var(--delay, 0s) infinite;
+  }
+  @keyframes lp-fall {
+    from { transform: translateY(-100%); }
+    to { transform: translateY(300%); }
+  }
+  /* The big name at the foot of the page, lit from behind. */
+  .lp-wordmark {
+    background-image: radial-gradient(60% 90% at 50% 105%, hsl(0 0% 100%), hsl(199 95% 72%) 28%, hsl(210 50% 30%) 62%, hsl(222 30% 9%) 90%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-stream::after { animation: none; transform: translateY(80%); }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .lp-navpill, .lp-menu { -webkit-backdrop-filter: none; backdrop-filter: none; background: hsl(222 28% 8%); }
 }

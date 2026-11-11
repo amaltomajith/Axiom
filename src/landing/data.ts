@@ -58,12 +58,25 @@ export const MCP_TOOLS = [
   'get_peer_comparison',
 ] as const;
 
-/** Sections the nav and footer link to. */
-export const NAV_LINKS = [
-  { href: '#how', label: 'How it works' },
-  { href: '#modes', label: 'Modes' },
-  { href: '#honest', label: 'Results' },
-  { href: '#faq', label: 'Questions' },
+/** The two menus in the top bar. In-page links start with "#"; the rest open the project on GitHub. */
+export const NAV_MENUS = [
+  {
+    label: 'Product',
+    items: [
+      { href: '#how', title: 'How it works', note: 'What it does while you get on with your day' },
+      { href: '#modes', title: 'Modes', note: 'Choose how much say it gets' },
+      { href: '#safety', title: 'Peace of mind', note: 'The promises it keeps, every day' },
+      { href: '#gateway', title: 'What comes with it', note: 'Everything included, in one place' },
+    ],
+  },
+  {
+    label: 'Learn',
+    items: [
+      { href: '#faq', title: 'Questions', note: 'Straight answers to good questions' },
+      { href: BACKTEST_DOC, title: 'Practice report', note: 'How it did across years of practice runs' },
+      { href: REPO, title: 'Source code', note: 'Every line, open for anyone to read' },
+    ],
+  },
 ] as const;
 
 /** Questions and answers for the landing FAQ. */

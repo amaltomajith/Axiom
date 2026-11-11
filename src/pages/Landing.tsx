@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Faq } from '@/landing/Faq';
 import { Features } from '@/landing/Features';
 import { FinalCta, Footer } from '@/landing/Footer';
+import { Gateway } from '@/landing/Gateway';
 import { Hero } from '@/landing/Hero';
 import { Honest } from '@/landing/Honest';
 import { Modes } from '@/landing/Modes';
@@ -26,6 +27,7 @@ export default function Landing() {
         <Trust />
         <Features />
         <Steps />
+        <Gateway />
         <Modes />
         <Showcase />
         <Honest />
