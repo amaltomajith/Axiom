@@ -161,6 +161,8 @@ class Engine:
         if self.cfg.kill_file and self.cfg.kill_file.exists():
             self.cfg.kill_file.unlink()
         self.st["kill_noted"] = False
+        if self.st["halted"] and self.st["halted"].startswith("watchdog"):
+            self.st["halted"] = None  # a human has looked; the daily loss halt still waits for the next day
         self.journal("resume", jt.resume(who), ts=now)
         self._save()
         self.emit("state")
@@ -263,7 +265,8 @@ class Engine:
             price, atr = float(book.close[i]), float(book.atr[i])
             r = self.rankings.get(sym)
             tc = self.cfg.tournament
-            if i >= tc.window - 1 and (r is None or i - r.at_index >= tc.refit_every):
+            due = r is None or book.ts[i] - r.at_ts >= tc.refit_every * self.cfg.bar_seconds - 1
+            if i >= tc.window - 1 and due:
                 prev_best = r.best.strategy if r and r.best else None
                 r = self.rankings[sym] = rank(book, i, self.cfg.cost_bps[parse(sym).kind], tc)
                 new_best = r.best.strategy if r.best else None

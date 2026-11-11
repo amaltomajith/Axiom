@@ -63,11 +63,19 @@ class SimBroker:
         return filled
 
     def set_price(self, symbol: str, price: float, ts: float | None = None) -> None:
+        """Live sim: mark a new price, and trigger the held stop if the price is at or below it."""
         self.marks[symbol] = price
         if ts is not None:
             self.now = ts
-        if symbol in self.positions:
-            self.positions[symbol].market_price = price
+        pos = self.positions.get(symbol)
+        if pos is None:
+            return
+        pos.market_price = price
+        if pos.stop_price is not None and price <= pos.stop_price:
+            o = Order(id=f"stop-{symbol}-{int(self.now)}", symbol=symbol, side="sell", qty=pos.qty,
+                      reason="stop-loss triggered at the broker", submitted_at=self.now)  # fmt: skip
+            self.orders[o.id] = o
+            self._execute(o, price)
 
     # -------------------------------------------------------------- protocol
     async def account(self) -> AccountState:
