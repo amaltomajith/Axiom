@@ -113,6 +113,8 @@ async def run_replay(
     contracts=None,
     ladder=None,
     should_stop: Callable[[], bool] | None = None,
+    ledger: MemoryLedger | None = None,
+    listener: Callable[[dict], None] | None = None,
 ) -> ReplayResult:
     s = get_settings()
     start_cash = start_cash or s.trader_starting_cash
@@ -135,13 +137,15 @@ async def run_replay(
         fee_bps={"crypto": s.trader_crypto_cost_bps, "equity": s.trader_equity_cost_bps},
         slippage_bps=s.trader_slippage_bps,
     )
-    ledger = MemoryLedger(session)
+    ledger = ledger if ledger is not None else MemoryLedger(session)
     engine = build_engine(
         list(books), session=session, broker=broker, ledger=ledger, brain=brain, autonomy=autonomy,
         bar_seconds=bar_seconds, periods_per_year=periods,
         contracts=contracts if contracts is not None else ContractBook(), ladder=ladder,
     )  # fmt: skip
     engine.set_books(books)
+    if listener is not None:
+        engine.listeners.append(listener)
     bench = equal_weight_benchmark(books, start_ts, start_cash)
     all_ts = np.unique(np.concatenate([b.ts for b in books.values()]))
     all_ts = all_ts[all_ts >= start_ts]
@@ -166,5 +170,7 @@ async def run_replay(
             on_progress(k + 1, n, ts)
         if delay:
             await asyncio.sleep(delay)
+        elif k % 25 == 0:
+            await asyncio.sleep(0)  # let the API serve requests while a fast replay runs
     end_ts = float(all_ts[-1]) if n else start_ts
     return ReplayResult(session, engine, broker, ledger, books, start_ts, end_ts, start_cash)

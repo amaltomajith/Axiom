@@ -108,6 +108,10 @@ def _floor(x: float, decimals: int) -> float:
     return math.floor(x * f + 1e-9) / f
 
 
+def _qty(x: float) -> str:
+    return f"{x:,.0f}" if float(x).is_integer() else f"{x:,.6f}".rstrip("0").rstrip(".")
+
+
 class RiskKernel:
     def __init__(self, limits: RiskLimits):
         self.limits = limits
@@ -308,7 +312,7 @@ class RiskKernel:
             return {
                 "ok": False,
                 "qty": 0.0,
-                "detail": f"Requested {intent.requested_qty:g} but the risk budget allows {qty:g}. "
+                "detail": f"Requested {_qty(intent.requested_qty)} but the risk budget allows {_qty(qty)}. "
                 "The kernel sizes trades; requests can only be smaller.",
             }
         if intent.requested_qty is not None:

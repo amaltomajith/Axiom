@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BarChart3, Briefcase, Eye, FlaskConical, Loader2, ScrollText, Target } from 'lucide-react';
+import { BarChart3, Bot, Eye, FlaskConical, Loader2, ScrollText, Target } from 'lucide-react';
 import { AgentPanel } from '@/components/AgentPanel';
 import { AgentTraceDrawer } from '@/components/AgentTraceDrawer';
 import { IndicatorPanel } from '@/components/IndicatorPanel';
@@ -24,12 +24,12 @@ const named = <K extends string>(load: () => Promise<Record<K, React.ComponentTy
   lazy(() => load().then(m => ({ default: m[key] as React.ComponentType<Record<string, unknown>> })));
 const BacktestTab = named(() => import('@/components/BacktestTab'), 'BacktestTab');
 const WatchlistTab = named(() => import('@/components/WatchlistTab'), 'WatchlistTab');
-const PaperTradingTab = named(() => import('@/components/PaperTradingTab'), 'PaperTradingTab');
+const AutopilotTab = named(() => import('@/components/autopilot/AutopilotTab'), 'AutopilotTab');
 const ScorecardTab = named(() => import('@/components/ScorecardTab'), 'ScorecardTab');
 const ActionsTab = named(() => import('@/components/ActionsTab'), 'ActionsTab');
 
-type TabId = 'analyze' | 'backtest' | 'watchlist' | 'trading' | 'scorecard' | 'actions';
-const TAB_IDS: TabId[] = ['analyze', 'backtest', 'watchlist', 'trading', 'scorecard', 'actions'];
+type TabId = 'autopilot' | 'analyze' | 'backtest' | 'watchlist' | 'scorecard' | 'actions';
+const TAB_IDS: TabId[] = ['autopilot', 'analyze', 'backtest', 'watchlist', 'scorecard', 'actions'];
 
 const TabFallback = () => (
   <div className="flex justify-center py-20" role="status" aria-label="Loading">
@@ -40,7 +40,7 @@ const TabFallback = () => (
 export default function AppPage() {
   const [params, setParams] = useSearchParams();
   const ticker = (params.get('t') ?? 'AAPL').toUpperCase();
-  const tab = (TAB_IDS.includes(params.get('tab') as TabId) ? params.get('tab') : 'analyze') as TabId;
+  const tab = (TAB_IDS.includes(params.get('tab') as TabId) ? params.get('tab') : 'autopilot') as TabId;
   const [traceOpen, setTraceOpen] = useState(false);
   const qc = useQueryClient();
   const { toast } = useToast();
@@ -61,15 +61,15 @@ export default function AppPage() {
   const setTab = (id: TabId) =>
     setParams(p => {
       const n = new URLSearchParams(p);
-      if (id === 'analyze') n.delete('tab');
+      if (id === 'autopilot') n.delete('tab');
       else n.set('tab', id);
       return n;
     });
 
   useEffect(() => {
     pushRecent(ticker);
-    document.title = `${ticker} | Axiom`;
-  }, [ticker]);
+    document.title = tab === 'autopilot' ? 'Autopilot | Axiom' : `${ticker} | Axiom`;
+  }, [ticker, tab]);
 
   const health = useQuery({ queryKey: ['health'], queryFn: api.health, retry: false, refetchInterval: 60_000 });
   const bars = useQuery({ queryKey: ['bars', ticker], queryFn: () => api.ohlcv(ticker, 90), retry: false });
@@ -114,10 +114,10 @@ export default function AppPage() {
   };
 
   const tabs: SegmentedOption<TabId>[] = [
+    { value: 'autopilot', label: 'Autopilot', icon: Bot },
     { value: 'analyze', label: 'Analyze', icon: FlaskConical },
     { value: 'backtest', label: 'Backtest', icon: BarChart3 },
     { value: 'watchlist', label: 'Watchlist', icon: Eye },
-    { value: 'trading', label: 'Paper trade', icon: Briefcase },
     { value: 'scorecard', label: 'Scorecard', icon: Target },
     { value: 'actions', label: 'Actions', icon: ScrollText, badge: pendingActions || undefined },
   ];
@@ -136,22 +136,25 @@ export default function AppPage() {
           </div>
         )}
 
-        <QuoteStrip
-          ticker={ticker}
-          loading={bars.isLoading}
-          last={last}
-          change={change}
-          changePct={changePct}
-          asOf={list[list.length - 1]?.date}
-          provider={bars.data?.provider}
-          watched={watched}
-          onToggleWatch={() => toggleWatch.mutate()}
-          onRefresh={refresh}
-          running={running}
-          canRun={!bars.isLoading && list.length > 0 && !offline}
-          onRun={run}
-          onCancel={stream.cancel}
-        />
+        {tab !== 'autopilot' && (
+          <QuoteStrip
+            ticker={ticker}
+            loading={bars.isLoading}
+            last={last}
+            change={change}
+            changePct={changePct}
+            asOf={list[list.length - 1]?.date}
+            provider={bars.data?.provider}
+            watched={watched}
+            onToggleWatch={() => toggleWatch.mutate()}
+            onRefresh={refresh}
+            running={running}
+            canRun={!bars.isLoading && list.length > 0 && !offline}
+            onRun={run}
+            onCancel={stream.cancel}
+          />
+        )}
+        {tab === 'autopilot' && <div className="h-6" aria-hidden />}
 
         <nav aria-label="Sections" className="-mx-4 mb-6 overflow-x-auto px-4 sm:mx-0 sm:px-0 [scrollbar-width:none]">
           <Segmented options={tabs} value={tab} onChange={setTab} ariaLabel="Sections" scroll />
@@ -212,7 +215,7 @@ export default function AppPage() {
         <Suspense fallback={<TabFallback />}>
           {tab === 'backtest' && <BacktestTab ticker={ticker} />}
           {tab === 'watchlist' && <WatchlistTab onSelectTicker={(t: string) => { setTicker(t); setTab('analyze'); }} />}
-          {tab === 'trading' && <PaperTradingTab ticker={ticker} />}
+          {tab === 'autopilot' && <AutopilotTab />}
           {tab === 'scorecard' && <ScorecardTab />}
           {tab === 'actions' && <ActionsTab />}
         </Suspense>

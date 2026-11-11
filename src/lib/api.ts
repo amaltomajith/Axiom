@@ -1,16 +1,26 @@
 import type {
   ActionPlan,
   ApiStatus,
+  BacktestReport,
   BacktestResponse,
+  CalibrationResponse,
+  ChainCheck,
+  EquityPoint,
   ForecastResponse,
   Health,
   IndicatorsResponse,
+  JournalEntry,
   NewsResponse,
   OhlcvResponse,
   PaperTrade,
+  RedteamResult,
   RegimeResponse,
+  ReplayJob,
   Scorecard,
   Thesis,
+  TradeContract,
+  TraderPosition,
+  TraderStatus,
   WatchItem,
 } from './types';
 
@@ -125,6 +135,35 @@ export const api = {
     }),
   closeTrade: (id: string) => request<PaperTrade>(`/api/trades/${enc(id)}/close`, { method: 'POST' }),
   deleteTrade: (id: string) => request<{ ok: boolean }>(`/api/trades/${enc(id)}`, { method: 'DELETE' }),
+};
+
+const post = <T>(path: string, body?: unknown) =>
+  request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
+const sess = (session: string) => `session=${enc(session)}`;
+
+/** The Autopilot paper trader. Reads are public; every POST needs the API token (or a direct local request). */
+export const trader = {
+  status: () => request<TraderStatus>('/api/trader/status'),
+  positions: () => request<TraderPosition[]>('/api/trader/positions'),
+  journal: (session = 'live', limit = 200) => request<JournalEntry[]>(`/api/trader/journal?${sess(session)}&limit=${limit}`),
+  verify: (session = 'live') => request<ChainCheck>(`/api/trader/journal/verify?${sess(session)}`),
+  contracts: (session = 'live') => request<TradeContract[]>(`/api/trader/contracts?${sess(session)}`),
+  calibration: (session = 'live') => request<CalibrationResponse>(`/api/trader/calibration?${sess(session)}`),
+  equity: (session = 'live') => request<EquityPoint[]>(`/api/trader/equity?${sess(session)}&limit=5000`),
+  report: () => request<BacktestReport>('/api/trader/backtest/report'),
+  replays: () => request<ReplayJob[]>('/api/trader/replays'),
+
+  kill: (reason: string) => post<{ ok: boolean; closed: number }>('/api/trader/kill', { reason }),
+  resume: () => post<{ ok: boolean }>('/api/trader/resume'),
+  start: () => post<{ ok: boolean }>('/api/trader/start'),
+  stop: () => post<{ ok: boolean }>('/api/trader/stop'),
+  setAutonomy: (level: string, lock = true) => post<{ ok: boolean; autonomy: string }>('/api/trader/autonomy', { level, lock }),
+  approve: (id: string) => post<{ ok: boolean; reason?: string }>(`/api/trader/orders/${enc(id)}/approve`),
+  reject: (id: string) => post<{ ok: boolean }>(`/api/trader/orders/${enc(id)}/reject`),
+  replay: (bars: number, delay: number) => post<ReplayJob>('/api/trader/replay', { bars, delay }),
+  stopReplay: (id: string) => post<ReplayJob>(`/api/trader/replays/${enc(id)}/stop`),
+  redteam: () => post<RedteamResult>('/api/trader/redteam'),
+  streamUrl: (session = 'live') => `${API_BASE}/api/trader/stream?${sess(session)}`,
 };
 
 export const POPULAR_TICKERS = ['AAPL', 'TSLA', 'NVDA', 'MSFT', 'AMZN', 'GOOGL'];

@@ -1,4 +1,5 @@
-"""Axiom HTTP API: market/quant endpoints for the UI, SSE-streamed agent runs, memory, approvals."""
+"""Axiom HTTP API: market/quant endpoints for the UI, SSE-streamed agent runs, memory, approvals, and the
+Autopilot paper trader under /api/trader (see `axiom/trading/api.py`)."""
 
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from axiom.actions import approval
 from axiom.actions.executors import build_executor
 from axiom.agents.toolbox import McpToolBox
 from axiom.agents.trace import Tracer
-from axiom.config import get_settings
+from axiom.config import ON_SERVERLESS, get_settings
 from axiom.data import market, news, sec
 from axiom.llm.client import LLMClient, TokenBudget
 from axiom.llm.providers import build_chain
@@ -29,6 +30,8 @@ from axiom.memory import scorer
 from axiom.memory.store import Store, get_store
 from axiom.pipeline import run_pipeline
 from axiom.quant.backtest import STRATEGIES
+from axiom.trading.api import build_router as build_trader_router
+from axiom.trading.service import TraderService
 
 
 # ----------------------------------------------------------------------------- guards
@@ -109,7 +112,13 @@ def create_app() -> FastAPI:
             from axiom.scheduler import start_scheduler
 
             scheduler = start_scheduler()
+        if settings.trader_enabled and not ON_SERVERLESS:
+            try:
+                await trader_service.start()
+            except Exception as e:  # the API must come up even if the trader cannot (it reports why)
+                trader_service.build_error = trader_service.build_error or f"{type(e).__name__}: {e}"[:300]
         yield
+        await trader_service.shutdown()
         if scheduler:
             scheduler.shutdown(wait=False)
 
@@ -127,6 +136,9 @@ def create_app() -> FastAPI:
 
     app.state.llm_factory = default_llm  # tests (and evals) swap in a scripted/replay client
     store = lambda: get_store()  # noqa: E731  (resolved per call so tests can swap the DB path)
+    trader_service = TraderService(store)
+    app.state.trader = trader_service
+    app.include_router(build_trader_router(trader_service))
 
     @app.exception_handler(market.DataError)
     async def _data_error(_: Request, e: market.DataError):

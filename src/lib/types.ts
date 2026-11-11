@@ -316,3 +316,202 @@ export interface PaperTrade {
   exit_price: number | null;
   exit_date: string | null;
 }
+
+// ------------------------------------------------------------------ Autopilot (/api/trader)
+export type Autonomy = 'SHADOW' | 'SUPERVISED' | 'AUTONOMOUS';
+
+export interface LadderProgress {
+  level: Autonomy;
+  next: Autonomy | null;
+  ceiling: Autonomy | null;
+  locked: boolean;
+  since: number | null;
+  have: number;
+  need: number;
+  brier: number | null;
+  max_brier: number | null;
+  net_return_pct: number;
+  ready: boolean;
+}
+
+export interface RiskBudget {
+  daily_pl_pct: number;
+  daily_loss_used: number;
+  daily_loss_limit_pct: number;
+  exposure_pct: number;
+  max_gross_pct: number;
+  trades_today: number;
+  max_trades_per_day: number;
+  open_positions: number;
+  max_open_positions: number;
+}
+
+export interface PendingEntry {
+  id: string;
+  created_at: number;
+  intent: { symbol: string; stop_price: number | null; strategy: string | null; confidence: number | null; reason?: string };
+  verdict: { qty: number; price: number; notional: number; risk_amount: number };
+  decision: { reason: string; thesis?: string | null };
+}
+
+export interface TraderStatus {
+  ok: boolean;
+  error?: string | null;
+  paper: boolean;
+  session?: string;
+  killed?: boolean;
+  halted?: string | null;
+  autonomy?: Autonomy;
+  running?: boolean;
+  broker?: string;
+  brain?: string;
+  timeframe?: string;
+  symbols?: string[];
+  heartbeat_age_seconds?: number | null;
+  failures?: number;
+  last_error?: string | null;
+  symbol_errors?: Record<string, string>;
+  benchmark_value?: number | null;
+  pending?: PendingEntry[];
+  account?: { equity: number; cash: number; positions: number; is_paper: boolean };
+  budget?: RiskBudget;
+  ladder?: LadderProgress | null;
+  llm_calls_left?: number | null;
+}
+
+export interface TraderPosition {
+  symbol: string;
+  qty: number;
+  avg_entry: number;
+  market_price: number;
+  stop_price: number | null;
+  market_value: number;
+  unrealized_pl: number;
+  strategy: string | null;
+  contract_id: string | null;
+  entry_ts: number | null;
+}
+
+export type JournalKind =
+  | 'entry' | 'exit' | 'stop' | 'blocked' | 'proposal' | 'tournament' | 'halt' | 'kill' | 'resume'
+  | 'autonomy' | 'note' | 'contract' | 'shadow' | 'veto' | 'flag';
+
+export interface JournalEntry {
+  session: string;
+  seq: number;
+  ts: number;
+  kind: JournalKind;
+  symbol: string | null;
+  text: string;
+  facts: Record<string, unknown>;
+  prev_hash: string;
+  hash: string;
+}
+
+export interface ChainCheck {
+  ok: boolean;
+  n: number;
+  broken_at: number | null;
+  why?: string;
+  head?: string;
+}
+
+export interface TradeContract {
+  id: string;
+  symbol: string;
+  created_at: number;
+  status: 'open' | 'graded' | 'cancelled';
+  shadow: boolean;
+  source: string;
+  strategy: string | null;
+  confidence: number | null;
+  thesis: string | null;
+  expected_move_pct: number | null;
+  horizon_bars: number | null;
+  entry_price: number;
+  stop_price: number | null;
+  invalidation: { type: string; [k: string]: unknown }[];
+  result: {
+    ts: number;
+    return_pct: number | null;
+    realized_pl: number | null;
+    reason: string;
+    outcome: number;
+    target_hit: boolean;
+    brier: number;
+    grade: 'A' | 'B' | 'C' | 'D';
+  } | null;
+}
+
+export interface CalibrationSummary {
+  n: number;
+  brier: number | null;
+  win_rate: number | null;
+  mean_confidence: number | null;
+  buckets: { lo: number; hi: number; n: number; mean_confidence: number; win_rate: number }[];
+  grades: Record<string, number>;
+  shadow: number;
+  net_return_pct: number;
+}
+
+export interface CalibrationResponse {
+  all: CalibrationSummary;
+  recent: CalibrationSummary;
+  ladder?: LadderProgress;
+}
+
+export interface EquityPoint {
+  ts: number;
+  equity: number;
+  cash: number;
+  benchmark: number | null;
+}
+
+export interface ReplayJob {
+  id: string;
+  session: string;
+  symbols: string[];
+  bars: number;
+  status: 'queued' | 'fetching' | 'running' | 'done' | 'error' | 'stopped';
+  progress: number;
+  sim_ts: number | null;
+  started_at: number;
+  finished_at: number | null;
+  error: string | null;
+  verdict: { verdict: Verdict; message: string; sharpe_diff: number | null; sharpe_diff_ci95: [number | null, number | null] } | null;
+}
+
+export interface ReportMetrics {
+  total_return: number;
+  cagr: number;
+  ann_vol: number;
+  sharpe: number;
+  sortino: number;
+  max_drawdown: number;
+  calmar: number;
+  exposure?: number;
+}
+
+export interface BacktestReport {
+  title: string;
+  generated_at: string;
+  period: { start: string; end: string; years: number; bars: number };
+  universe: string[];
+  start_cash: number;
+  agent: ReportMetrics;
+  benchmark: ReportMetrics;
+  verdict: { verdict: Verdict; message: string; sharpe_diff: number | null; sharpe_diff_ci95: [number | null, number | null] };
+  fixed_strategies: Record<string, ReportMetrics>;
+  trades: { entries: number; closed: number; win_rate: number | null; profit_factor: number | null; fees_paid: number };
+  risk_events: { stop_outs: number; daily_loss_halts: number; blocked: Record<string, number>; tournament_changes: number };
+  contracts: CalibrationSummary;
+  curve: { date: string; agent: number; benchmark: number }[];
+  journal_entries: number;
+}
+
+export interface RedteamResult {
+  approved: boolean;
+  failed_rules: string[];
+  verdict: { reason: string; blocked_by: string | null };
+  headline: { text: string; flagged: boolean; model_sees: string | null };
+}
