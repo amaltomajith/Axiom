@@ -64,6 +64,32 @@ class Settings(BaseSettings):
     slack_channel: str | None = None
     action_min_conviction: float = 0.5
 
+    # --- Autopilot: the paper-trading agent (axiom/trading). There is no live-money setting, by design.
+    alpaca_api_key: str | None = None  # PAPER keys from app.alpaca.markets
+    alpaca_secret_key: str | None = None
+    trader_enabled: bool = False  # start the trading loop with the API process
+    trader_broker: str = "sim"  # sim | alpaca
+    trader_brain: str = "rule"  # rule | llm
+    trader_symbols: str = "BTC/USD,ETH/USD,SPY,QQQ,AAPL,NVDA,MSFT"
+    trader_timeframe: str = "1Hour"  # live bars: 15Min | 1Hour | 1Day
+    trader_interval_seconds: int = 60  # how often the live loop ticks
+    trader_starting_cash: float = 100_000.0  # SimBroker only
+    trader_autonomy_start: str = "SUPERVISED"  # SHADOW | SUPERVISED | AUTONOMOUS
+    trader_daily_loss_limit_pct: float = 0.02
+    trader_risk_per_trade: float = 0.01
+    trader_max_position_pct: float = 0.20
+    trader_max_gross_pct: float = 1.0
+    trader_max_open_positions: int = 4
+    trader_max_trades_per_day: int = 10
+    trader_min_stop_pct: float = 0.002
+    trader_max_stop_pct: float = 0.15
+    trader_cooldown_bars: int = 3
+    trader_stop_atr_mult: float = 2.0
+    trader_crypto_cost_bps: float = 25.0  # Alpaca crypto taker fee tier 1
+    trader_equity_cost_bps: float = 5.0
+    trader_slippage_bps: float = 5.0
+    trader_max_llm_calls_per_hour: int = 20
+
     # --- server
     # Bearer token for mutating endpoints; REQUIRED when real actions are enabled.
     # Read from AXIOM_API_TOKEN (not API_TOKEN) so it cannot collide with unrelated env vars.

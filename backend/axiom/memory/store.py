@@ -14,6 +14,7 @@ from typing import Any
 
 from axiom.config import BACKEND_DIR, get_settings
 from axiom.db import Db, upsert_sql
+from axiom.trading.schema import TRADING_SCHEMA
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -60,7 +61,7 @@ class Store:
     def __init__(self, path: Path | None = None, url: str | None = None):
         self.db = Db(url=url, path=None if url else Path(path or _default_path()))
         self.path = self.db.path
-        self.db.init_schema(SCHEMA + USAGE_SCHEMA)
+        self.db.init_schema(SCHEMA + USAGE_SCHEMA + TRADING_SCHEMA)
 
     def _conn(self):
         return self.db.connect()
