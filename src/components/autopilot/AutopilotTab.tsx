@@ -84,28 +84,18 @@ export function AutopilotTab() {
           </Button>
         </div>
       )}
-      <div className="grid items-start gap-6 lg:grid-cols-12">
-        <div className={live ? 'lg:col-span-8' : 'lg:col-span-12'}>
-          <EquityChart session={session} />
-        </div>
-        {live && (
-          <div className="lg:col-span-4">
-            <Positions />
-          </div>
-        )}
+      {/* Every row is one height: cards stretch to their neighbour, and lists scroll inside their own card. */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <EquityChart session={session} className={live ? 'lg:col-span-8' : 'lg:col-span-12'} />
+        {live && <Positions className="lg:col-span-4" />}
       </div>
-      {/* One row, one height: both lists scroll inside their own card instead of leaving a gap beside the shorter one. */}
       <div className="grid gap-6 lg:grid-cols-12">
         <JournalFeed session={session} className="lg:col-span-7 lg:h-[760px]" />
         <Contracts session={session} className="lg:col-span-5 lg:h-[760px]" />
       </div>
-      <div className="grid items-start gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-7">
-          <TimeMachine session={session} onSession={setSession} />
-        </div>
-        <div className="lg:col-span-5">
-          <ReportView />
-        </div>
+      <div className="grid gap-6 lg:grid-cols-12">
+        <TimeMachine session={session} onSession={setSession} className="lg:col-span-5" />
+        <ReportView className="lg:col-span-7" />
       </div>
       <p className="px-1 text-caption text-muted-foreground">Paper trading only: no setting enables real money. Live updates {connected ? 'are streaming' : 'fall back to polling'}.</p>
     </div>

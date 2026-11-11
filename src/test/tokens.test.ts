@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * Design tokens are checked, not trusted: every text/background pair that the UI actually uses must meet
- * WCAG AA in BOTH themes (4.5:1 for text). Values are read straight from src/index.css.
+ * WCAG AA in the one (dark) theme (4.5:1 for text). Values are read straight from src/index.css.
  */
 const css = readFileSync(resolve(__dirname, '../index.css'), 'utf-8');
 
@@ -46,10 +46,7 @@ const over = (tint: Hsl, alpha: number, backdrop: Hsl) => {
   return t.map((v, i) => v * alpha + b[i] * (1 - alpha));
 };
 
-describe.each([
-  ['light', block(':root')],
-  ['dark', block('.dark')],
-] as const)('%s theme tokens meet WCAG AA', (_name, t) => {
+describe.each([['dark', block(':root')]] as const)('%s theme tokens meet WCAG AA', (_name, t) => {
   const pairs: [string, string, string][] = [
     ['foreground', 'background', 'body text'],
     ['foreground', 'card', 'text on surface'],

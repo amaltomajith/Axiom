@@ -2,7 +2,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { trader } from '@/lib/api';
+import type { TraderStatus } from '@/lib/types';
 import { FAQ, MCP_TOOLS, REPO, snapshot } from '@/landing/data';
 import { Features } from '@/landing/Features';
 import { FinalCta, Footer } from '@/landing/Footer';
@@ -47,6 +49,18 @@ describe('landing sections', () => {
     expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('A trading partner that thinks first.');
     expect(screen.getByRole('link', { name: /Start on paper/ })).toHaveAttribute('href', '/app');
     expect(screen.getByRole('img', { name: /cockpit/ })).toHaveAttribute('src', '/landing/cockpit.jpg');
+  });
+
+  it('hero says it is live only when the backend reports a running paper loop', async () => {
+    const spy = vi.spyOn(trader, 'status').mockResolvedValue({ ok: true, running: true, killed: false, symbols: ['BTC/USD', 'ETH/USD'] } as TraderStatus);
+    wrap(<Hero />);
+    expect(await screen.findByText('Live now, watching 2 markets on paper')).toBeInTheDocument();
+    spy.mockRestore();
+  });
+
+  it('hero falls back to the plain promise when no backend answers', async () => {
+    wrap(<Hero />);
+    expect(await screen.findByText('Practice money only')).toBeInTheDocument();
   });
 
   it('nav menus open, close on Escape, and link only to sections that exist or to the project', () => {

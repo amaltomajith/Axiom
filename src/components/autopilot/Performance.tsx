@@ -14,7 +14,7 @@ import { strategyLabel } from './labels';
 import { TRADER_KEY, shortDate, shortTime } from './useTrader';
 
 /** Paper equity against an equal-weight buy-and-hold of the same symbols from the same start. */
-export function EquityChart({ session }: { session: string }) {
+export function EquityChart({ session, className }: { session: string; className?: string }) {
   const t = useChartTheme();
   const { data = [] } = useQuery({
     queryKey: [TRADER_KEY, 'equity', session],
@@ -30,9 +30,14 @@ export function EquityChart({ session }: { session: string }) {
   // A flat or nearly flat curve would print the same "100k" on every tick: use whole dollars instead.
   const yTick = (v: number) => (span < 5_000 ? money(v, 0) : `${(v / 1000).toFixed(0)}k`);
   return (
-    <Section title="Equity against buy-and-hold" description="Same symbols, same starting cash, no risk rules for the benchmark">
+    <Section className={cn('flex h-full flex-col', className)} title="Equity against buy-and-hold" description="Same symbols, same starting cash, no risk rules for the benchmark">
       {points.length < 2 ? (
-        <EmptyState icon={LineIcon} title="No equity history yet" description="The curve fills in as the Autopilot ticks or a Time Machine run replays history." className="py-10" />
+        <EmptyState
+          icon={LineIcon}
+          title="No equity history yet"
+          description="The curve fills in as the Autopilot ticks or a Time Machine run replays history."
+          className="flex-1 justify-center border-t border-border py-10"
+        />
       ) : (
         <div className="border-t border-border px-2 pb-3 pt-4 sm:px-4">
           <ResponsiveContainer width="100%" height={280}>
@@ -88,7 +93,10 @@ function ContractRow({ c }: { c: TradeContract }) {
       <Cell>
         <span className="font-mono font-medium">{c.symbol}</span>
         {c.shadow && <span className="ml-1.5 text-caption text-muted-foreground">shadow</span>}
-        <span className="block text-caption text-muted-foreground" title={[`${c.strategy}, ${c.source} brain`, c.horizon_bars ? `${c.horizon_bars} bar horizon` : '', c.thesis ?? ''].filter(Boolean).join('. ')}>
+        <span
+          className="block text-caption text-muted-foreground"
+          title={[`${c.strategy}, ${c.source} brain`, c.horizon_bars ? `${c.horizon_bars} bar horizon` : '', c.thesis ?? ''].filter(Boolean).join('. ')}
+        >
           {strategyLabel(c.strategy)}
         </span>
       </Cell>
@@ -137,17 +145,22 @@ export function Contracts({ session, className }: { session: string; className?:
       actions={all?.brier != null && <Badge variant={all.brier <= 0.25 ? 'default' : 'warning'}>Brier {num(all.brier, 3)}</Badge>}
     >
       {!all?.n && !rows.length ? (
-        <EmptyState icon={FileCheck2} title="No contracts yet" description="The first one opens with the first entry (or the first would-be entry in shadow mode)." className="py-10" />
+        <EmptyState
+          icon={FileCheck2}
+          title="No contracts yet"
+          description="The first one opens with the first entry (or the first would-be entry in shadow mode)."
+          className="flex-1 justify-center border-t border-border py-10"
+        />
       ) : (
         <>
           {all && all.n > 0 && (
-            <div className="grid shrink-0 gap-4 border-t border-border px-5 py-4 sm:px-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-              <dl className="grid grid-cols-2 gap-4 self-start">
+            <div className="shrink-0 border-t border-border px-5 py-4 sm:px-6">
+              <dl className="grid grid-cols-3 gap-4">
                 <div>
                   <dt className="text-caption text-muted-foreground">Graded</dt>
                   <dd className="tnum mt-1 text-h3">
                     {all.n}
-                    {all.shadow ? ` (${all.shadow} shadow)` : ''}
+                    {all.shadow ? <span className="text-small text-muted-foreground"> ({all.shadow} shadow)</span> : null}
                   </dd>
                 </div>
                 <div>
@@ -155,20 +168,20 @@ export function Contracts({ session, className }: { session: string; className?:
                   <dd className="tnum mt-1 text-h3">{all.win_rate != null ? `${Math.round(all.win_rate * 100)}%` : 'n/a'}</dd>
                 </div>
                 <div>
-                  <dt className="text-caption text-muted-foreground">Stated confidence</dt>
+                  <dt className="text-caption text-muted-foreground">Stated odds</dt>
                   <dd className="tnum mt-1 text-h3">{all.mean_confidence != null ? `${Math.round(all.mean_confidence * 100)}%` : 'n/a'}</dd>
                 </div>
-                <div>
-                  <dt className="text-caption text-muted-foreground">Grades</dt>
-                  <dd className="tnum mt-1 text-h3">{['A', 'B', 'C', 'D'].map(g => `${g} ${all.grades[g] ?? 0}`).join('  ')}</dd>
-                </div>
-                <p className="col-span-2 text-caption text-muted-foreground">
-                  Brier score: 0 is perfect, 0.25 is a coin flip. A is a profit that reached the target, C is a loss closed by the contract's own exit.
-                </p>
               </dl>
+              <div className="mt-4 flex flex-wrap items-center gap-2" aria-label="Grades">
+                {(['A', 'B', 'C', 'D'] as const).map(g => (
+                  <Badge key={g} variant={GRADE_VARIANT[g]} className="tnum">
+                    {g} <span className="opacity-80">{all.grades[g] ?? 0}</span>
+                  </Badge>
+                ))}
+              </div>
               {buckets.length > 0 && (
-                <div aria-label="Calibration chart">
-                  <ResponsiveContainer width="100%" height={200}>
+                <div aria-label="Calibration chart" className="mt-4">
+                  <ResponsiveContainer width="100%" height={170}>
                     <BarChart data={buckets} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                       <CartesianGrid stroke={t.grid} vertical={false} />
                       <XAxis dataKey="band" tick={tick} tickLine={false} axisLine={false} />
@@ -185,31 +198,34 @@ export function Contracts({ session, className }: { session: string; className?:
                         formatter={(v: number, name: string) => [`${v}%`, name]}
                       />
                       <Legend wrapperStyle={{ fontSize: 12 }} />
-                      <Bar dataKey="stated" name="Stated confidence" fill={t.benchmark} radius={[3, 3, 0, 0]} />
-                      <Bar dataKey="actual" name="Actually profitable" fill={t.accent} radius={[3, 3, 0, 0]} />
+                      <Bar dataKey="stated" name="Stated confidence" fill={t.benchmark} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+                      <Bar dataKey="actual" name="Actually profitable" fill={t.accent} radius={[3, 3, 0, 0]} isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>
                 </div>
               )}
+              <p className="mt-3 text-caption text-muted-foreground">
+                Brier score: 0 is perfect, 0.25 is a coin flip. A is a profit that reached the target, C is a loss closed by the contract's own exit.
+              </p>
             </div>
           )}
           {rows.length > 0 && (
             <div className="max-h-[560px] min-h-0 flex-1 overflow-y-auto lg:max-h-none">
-            <List
-              stickyHeader
-              cols="grid-cols-[minmax(0,1fr)_3.5rem_4.5rem_3rem] sm:grid-cols-[minmax(0,1fr)_3.5rem_4.5rem_4.75rem_3rem]"
-              headers={[
-                { label: 'Contract' },
-                { label: 'Odds', align: 'right' },
-                { label: 'Target', align: 'right', hideBelow: 'sm' },
-                { label: 'Result', align: 'right' },
-                { label: 'Grade', align: 'right' },
-              ]}
-            >
-              {rows.map(c => (
-                <ContractRow key={c.id} c={c} />
-              ))}
-            </List>
+              <List
+                stickyHeader
+                cols="grid-cols-[minmax(0,1fr)_3.5rem_4.5rem_3rem] sm:grid-cols-[minmax(0,1fr)_3.5rem_4.5rem_4.75rem_3rem]"
+                headers={[
+                  { label: 'Contract' },
+                  { label: 'Odds', align: 'right' },
+                  { label: 'Target', align: 'right', hideBelow: 'sm' },
+                  { label: 'Result', align: 'right' },
+                  { label: 'Grade', align: 'right' },
+                ]}
+              >
+                {rows.map(c => (
+                  <ContractRow key={c.id} c={c} />
+                ))}
+              </List>
             </div>
           )}
         </>

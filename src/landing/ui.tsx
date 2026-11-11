@@ -36,10 +36,13 @@ export function GhostLink({ href, children, className }: { href: string; childre
   );
 }
 
-export function Chip({ children, className }: { children: ReactNode; className?: string }) {
+export function Chip({ children, className, live }: { children: ReactNode; className?: string; live?: boolean }) {
   return (
     <span className={cn('lp-chip inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-caption font-medium text-foreground', className)}>
-      <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+      <span aria-hidden className="relative flex h-1.5 w-1.5">
+        {live && <span className="absolute inset-0 animate-ping rounded-full bg-primary/70" />}
+        <span className="relative h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
+      </span>
       {children}
     </span>
   );

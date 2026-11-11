@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { Loader2, Play, Square } from 'lucide-react';
+import { History, Loader2, Play, Square } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/kit/EmptyState';
 import { Cell, List, ListRow } from '@/components/kit/List';
 import { Segmented } from '@/components/kit/Segmented';
 import { Section } from '@/components/kit/Surface';
@@ -11,6 +12,7 @@ import { useChartTheme } from '@/hooks/useChartTheme';
 import { trader } from '@/lib/api';
 import { frac, money, num } from '@/lib/format';
 import type { ReportMetrics, Verdict } from '@/lib/types';
+import { cn } from '@/lib/utils';
 import { TRADER_KEY, shortDate, useTraderAction } from './useTrader';
 
 const VERDICT: Record<Verdict, { title: string; variant: 'default' | 'warning' | 'neutral' }> = {
@@ -23,7 +25,7 @@ const VERDICT: Record<Verdict, { title: string; variant: 'default' | 'warning' |
 type Speed = 'fast' | 'watch';
 
 /** Replay history through the live engine, then browse that run as its own session. */
-export function TimeMachine({ session, onSession }: { session: string; onSession: (s: string) => void }) {
+export function TimeMachine({ session, onSession, className }: { session: string; onSession: (s: string) => void; className?: string }) {
   const [speed, setSpeed] = useState<Speed>('watch');
   const replays = useQuery({
     queryKey: [TRADER_KEY, 'replays'],
@@ -45,6 +47,7 @@ export function TimeMachine({ session, onSession }: { session: string; onSession
 
   return (
     <Section
+      className={cn('flex flex-col', className)}
       title="Time Machine"
       description="The same engine, kernel and brain replayed over about four years of daily bars, filling at the next bar's open with fees and slippage"
       actions={
@@ -82,6 +85,14 @@ export function TimeMachine({ session, onSession }: { session: string; onSession
           </div>
         )}
       </div>
+      {(replays.data ?? []).length === 0 && (
+        <EmptyState
+          icon={History}
+          title="No replays yet"
+          description="Press Run to replay years of real prices through the same rules. Every decision lands in the journal, and nothing reaches a broker."
+          className="flex-1 justify-center border-t border-border py-10"
+        />
+      )}
       {(replays.data ?? []).length > 0 && (
         <List cols="grid-cols-[1fr_auto_auto]" headers={[{ label: 'Run' }, { label: 'Verdict', align: 'right' }, { label: '', align: 'right' }]}>
           <ListRow>
@@ -137,7 +148,7 @@ function compare(a: ReportMetrics, b: ReportMetrics): string {
 }
 
 /** The committed backtest report: the honest verdict against buy-and-hold, with its interval. */
-export function ReportView() {
+export function ReportView({ className }: { className?: string }) {
   const t = useChartTheme();
   const { data, error } = useQuery({
     queryKey: [TRADER_KEY, 'report'],
@@ -147,7 +158,7 @@ export function ReportView() {
   });
   if (error || !data) {
     return (
-      <Section title="Backtest report" description="Run `python -m axiom.trading backtest` in backend/ to generate it">
+      <Section className={className} title="Backtest report" description="Run `python -m axiom.trading backtest` in backend/ to generate it">
         <p className="border-t border-border px-5 py-4 text-small text-muted-foreground sm:px-6">{error ? (error as Error).message : 'Loading'}</p>
       </Section>
     );
@@ -158,6 +169,7 @@ export function ReportView() {
   const step = Math.max(1, Math.floor(data.curve.length / 300));
   return (
     <Section
+      className={className}
       title="Backtest report"
       description={`${data.period.start} to ${data.period.end}, ${data.universe.join(', ')}, ${money(data.start_cash, 0)} start`}
       actions={<Badge variant={v.variant}>{v.title}</Badge>}

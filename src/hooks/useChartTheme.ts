@@ -1,5 +1,4 @@
 import { useMemo } from 'react';
-import { useTheme } from 'next-themes';
 
 export interface ChartTheme {
   grid: string;
@@ -20,27 +19,21 @@ const read = (name: string): string => {
 
 /**
  * Recharts needs concrete colour strings, not CSS variables. Resolve the design tokens for the active theme
- * so the same chart reads correctly in light and dark (no hard-coded colours in components).
+ * so charts use the same palette as everything else (no hard-coded colours in components).
  */
 export function useChartTheme(): ChartTheme {
-  const { resolvedTheme } = useTheme();
-  return useMemo(
-    () => {
-      const hsl = (n: string) => `hsl(${read(n)})`;
-      return {
-        grid: hsl('chart-grid'),
-        axis: hsl('chart-axis'),
-        line: hsl('chart-line'),
-        accent: hsl('chart-accent'),
-        benchmark: hsl('chart-benchmark'),
-        surface: hsl('popover'),
-        border: hsl('border'),
-        text: hsl('foreground'),
-        mono: '"Geist Mono Variable", ui-monospace, monospace',
-      };
-    },
-    // resolvedTheme is the real dependency: tokens change when the class on <html> flips
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resolvedTheme],
-  );
+  return useMemo(() => {
+    const hsl = (n: string) => `hsl(${read(n)})`;
+    return {
+      grid: hsl('chart-grid'),
+      axis: hsl('chart-axis'),
+      line: hsl('chart-line'),
+      accent: hsl('chart-accent'),
+      benchmark: hsl('chart-benchmark'),
+      surface: hsl('popover'),
+      border: hsl('border'),
+      text: hsl('foreground'),
+      mono: '"Geist Mono Variable", ui-monospace, monospace',
+    };
+  }, []);
 }

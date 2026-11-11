@@ -129,7 +129,7 @@ export function ControlBar({ status, onRedteam }: { status: TraderStatus; onRedt
   const hb = status.heartbeat_age_seconds;
   const alive = status.running && hb != null && hb < 3 * 60 + (status.timeframe === '1Day' ? 86_400 : 0);
   return (
-    <section className="surface overflow-hidden" aria-label="Autopilot controls">
+    <section className="surface surface-lit overflow-hidden" aria-label="Autopilot controls">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="solid" className="font-mono">
@@ -139,7 +139,7 @@ export function ControlBar({ status, onRedteam }: { status: TraderStatus; onRedt
             {status.killed ? 'Killed' : status.halted ? 'Halted' : alive ? 'Running' : status.running ? 'Starting' : 'Stopped'}
           </Badge>
           <span className="text-caption text-muted-foreground">
-            {status.broker} broker, {status.brain} brain, {status.timeframe} bars{hb != null ? `, heartbeat ${Math.round(hb)}s ago` : ''}
+            {status.broker} broker, {status.brain} brain, {status.timeframe} bars{status.running && hb != null ? `, heartbeat ${Math.round(hb)}s ago` : ''}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -191,7 +191,11 @@ export function ControlBar({ status, onRedteam }: { status: TraderStatus; onRedt
           </div>
           <div>
             <p className="text-caption text-muted-foreground">Buy-and-hold basket</p>
-            <p className="tnum mt-1 text-h2 text-muted-foreground">{money(status.benchmark_value ?? null)}</p>
+            {status.benchmark_value != null ? (
+              <p className="tnum mt-1 text-h2 text-muted-foreground">{money(status.benchmark_value)}</p>
+            ) : (
+              <p className="mt-2 text-small text-muted-foreground">Starts with the first tick</p>
+            )}
           </div>
         </div>
         {status.autonomy && <Ladder level={status.autonomy} progress={status.ladder} onSet={l => level.mutate(l)} busy={level.isPending} />}

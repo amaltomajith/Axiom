@@ -16,7 +16,7 @@ export function EmptyState({
   return (
     <div className={cn('flex flex-col items-center px-6 py-14 text-center', className)}>
       {Icon && (
-        <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-primary/25 bg-gradient-to-b from-primary/15 to-primary/[0.03] text-primary shadow-[0_0_24px_-8px_hsl(var(--primary)/0.7)]">
           <Icon className="h-5 w-5" />
         </div>
       )}

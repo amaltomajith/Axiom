@@ -23,6 +23,9 @@ if (typeof window.ResizeObserver === 'undefined') {
   } as unknown as typeof ResizeObserver;
 }
 
+// Tests never touch the network: anything that calls fetch without injecting its own gets a refusal.
+globalThis.fetch = (() => Promise.reject(new TypeError('network disabled in tests'))) as typeof fetch;
+
 // jsdom has no canvas; return no context (the landing globe then draws nothing) instead of logging "not implemented".
 HTMLCanvasElement.prototype.getContext = (() => null) as unknown as typeof HTMLCanvasElement.prototype.getContext;
 

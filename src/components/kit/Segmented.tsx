@@ -33,7 +33,7 @@ export function Segmented<T extends string>({ options, value, onChange, ariaLabe
       role="tablist"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex max-w-full items-center gap-0.5 rounded-full border border-border bg-muted p-1',
+        'inline-flex max-w-full items-center gap-0.5 rounded-full border border-white/10 bg-white/[0.03] p-1 shadow-[inset_0_1px_0_hsl(0_0%_100%/0.05)]',
         scroll && 'overflow-x-auto [scrollbar-width:none]',
         className,
       )}
@@ -62,7 +62,7 @@ export function Segmented<T extends string>({ options, value, onChange, ariaLabe
             {active && (
               <motion.span
                 layoutId={`seg-${id}`}
-                className="absolute inset-0 rounded-full border border-border bg-card shadow-sm"
+                className="absolute inset-0 rounded-full border border-primary/30 bg-primary/[0.12] shadow-[0_0_20px_-6px_hsl(var(--primary)/0.7),inset_0_1px_0_hsl(0_0%_100%/0.08)]"
                 transition={reduce ? { duration: 0 } : spring.snappy}
               />
             )}

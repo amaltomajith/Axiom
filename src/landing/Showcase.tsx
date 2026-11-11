@@ -22,8 +22,8 @@ export function Showcase() {
         >
           <img
             src="/landing/journal.jpg"
-            width={1248}
-            height={780}
+            width={1580}
+            height={800}
             loading="lazy"
             decoding="async"
             alt="The journal, with a note for every decision, beside the report cards that grade each trade"

@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Logo, LogoMark } from '@/components/Logo';
-import { ThemeToggle } from '@/components/ThemeToggle';
+import { LogoMark } from '@/components/Logo';
 import { TokenDialog } from '@/components/TokenDialog';
 import { StatusPopover } from '@/components/shell/StatusPopover';
 import { TickerCommand } from '@/components/shell/TickerCommand';
@@ -17,16 +16,19 @@ interface Props {
 export function AppHeader({ ticker, onTicker, health, offline }: Props) {
   return (
     <header className="material sticky top-0 z-40">
-      <div className="mx-auto flex h-16 max-w-[1280px] items-center gap-3 px-4 sm:px-6">
+      <div className="mx-auto flex h-[72px] max-w-[1320px] items-center gap-3 px-4 sm:px-6">
         <Link to="/" aria-label="Axiom home" className="shrink-0 rounded-md">
-          <Logo className="hidden sm:inline-flex" />
-          <LogoMark className="sm:hidden" />
+          <span className="flex items-center gap-3">
+            <LogoMark className="h-8 w-8 drop-shadow-[0_0_12px_hsl(var(--primary)/0.55)]" />
+            <span translate="no" className="lp-silver hidden text-[0.95rem] font-semibold tracking-[0.34em] sm:inline">
+              AXIOM
+            </span>
+          </span>
         </Link>
-        <div className="mx-1 hidden h-5 w-px bg-border sm:block" />
+        <div className="mx-2 hidden h-5 w-px bg-white/10 sm:block" />
         <TickerCommand ticker={ticker} onSelect={onTicker} />
         <div className="ml-auto flex items-center gap-0.5">
           <StatusPopover health={health} offline={offline} />
-          <ThemeToggle />
           <TokenDialog />
         </div>
       </div>

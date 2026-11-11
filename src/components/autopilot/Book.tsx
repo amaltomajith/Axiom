@@ -14,16 +14,16 @@ import { TRADER_KEY, useTraderAction } from './useTrader';
 const qty = (q: number) => (Number.isInteger(q) ? String(q) : q.toFixed(6).replace(/0+$/, '').replace(/\.$/, ''));
 
 /** Open positions with the stop the broker holds for each one. */
-export function Positions() {
+export function Positions({ className }: { className?: string }) {
   const { data = [] } = useQuery({
     queryKey: [TRADER_KEY, 'positions'],
     queryFn: trader.positions,
     refetchInterval: 15_000,
   });
   return (
-    <Section title="Positions" description="Every position has a stop-loss held at the broker">
+    <Section className={cn('flex flex-col', className)} title="Positions" description="Every position has a stop-loss held at the broker">
       {data.length === 0 ? (
-        <EmptyState icon={Wallet} title="Flat" description="No open positions. Holding cash is a decision too: the journal says why." className="py-10" />
+        <EmptyState icon={Wallet} title="Flat" description="No open positions. Holding cash is a decision too: the journal says why." className="flex-1 justify-center border-t border-border py-10" />
       ) : (
         <List
           cols="grid-cols-[1fr_6rem_6rem] md:grid-cols-[1fr_6rem_7rem_7rem_7rem]"

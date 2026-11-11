@@ -85,7 +85,11 @@ export default function AppPage() {
     mutationFn: () => (watched ? api.watchRemove(ticker) : api.watchAdd(ticker)),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['watchlist'] }),
     onError: (e: unknown) =>
-      toast({ title: e instanceof ApiError && e.status === 401 ? 'API token required' : 'Could not update watchlist', description: e instanceof Error ? e.message : 'Unknown error', variant: 'destructive' }),
+      toast({
+        title: e instanceof ApiError && e.status === 401 ? 'API token required' : 'Could not update watchlist',
+        description: e instanceof Error ? e.message : 'Unknown error',
+        variant: 'destructive',
+      }),
   });
 
   const result = stream.result && stream.result.ticker === ticker ? stream.result : null;
@@ -123,13 +127,14 @@ export default function AppPage() {
   ];
 
   return (
-    <div className="min-h-[100dvh] bg-background">
+    <div className="relative isolate min-h-[100dvh] overflow-x-clip bg-background">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[620px] bg-[radial-gradient(55%_60%_at_50%_0%,hsl(var(--primary)/0.14),transparent_70%)]" />
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-3 focus:top-3 focus:z-50 focus:rounded-md focus:bg-card focus:px-3 focus:py-2 focus:shadow-md">
         Skip to content
       </a>
       <AppHeader ticker={ticker} onTicker={setTicker} health={health.data} offline={offline} />
 
-      <main id="main" className="mx-auto max-w-[1280px] px-4 pb-24 sm:px-6">
+      <main id="main" className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-6">
         {offline && (
           <div role="alert" className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-small text-destructive">
             The backend is not reachable, so there is no market data or analysis. Open the status menu for how to start it.
@@ -214,7 +219,14 @@ export default function AppPage() {
 
         <Suspense fallback={<TabFallback />}>
           {tab === 'backtest' && <BacktestTab ticker={ticker} />}
-          {tab === 'watchlist' && <WatchlistTab onSelectTicker={(t: string) => { setTicker(t); setTab('analyze'); }} />}
+          {tab === 'watchlist' && (
+            <WatchlistTab
+              onSelectTicker={(t: string) => {
+                setTicker(t);
+                setTab('analyze');
+              }}
+            />
+          )}
           {tab === 'autopilot' && <AutopilotTab />}
           {tab === 'scorecard' && <ScorecardTab />}
           {tab === 'actions' && <ActionsTab />}

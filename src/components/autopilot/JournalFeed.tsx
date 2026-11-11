@@ -107,7 +107,12 @@ export function JournalFeed({ session, className }: { session: string; className
       {journal.isLoading ? (
         <SkeletonRows rows={5} />
       ) : rows.length === 0 ? (
-        <EmptyState icon={ScrollText} title="Nothing journaled yet" description="Start the Autopilot or run the Time Machine; every decision lands here." />
+        <EmptyState
+          icon={ScrollText}
+          title="Nothing journaled yet"
+          description="Start the Autopilot or run the Time Machine; every decision lands here."
+          className="flex-1 justify-center border-t border-border"
+        />
       ) : (
         <ol className="max-h-[640px] min-h-0 flex-1 divide-y divide-border overflow-y-auto border-t border-border lg:max-h-none">
           {rows.map(e => (

@@ -1,4 +1,6 @@
 import { motion } from 'motion/react';
+import { useEffect, useState } from 'react';
+import { trader } from '@/lib/api';
 import { spring, useReducedMotion } from '@/lib/motion';
 import { Globe } from './Globe';
 import { Chip, GhostLink, StartLink } from './ui';
@@ -18,6 +20,34 @@ const STREAMS = [
 ] as const;
 
 /**
+ * The chip above the headline reads the running Autopilot when this page is served with its backend: while the
+ * loop is trading on paper it says so, live. Anywhere else (or if the backend is quiet) it is a plain promise.
+ */
+function LiveChip() {
+  const [watching, setWatching] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const read = () =>
+      trader
+        .status()
+        .then(s => alive && setWatching(s.ok && s.running && !s.killed ? (s.symbols?.length ?? 0) : null))
+        .catch(() => alive && setWatching(null));
+    read();
+    const id = window.setInterval(read, 30_000);
+    return () => {
+      alive = false;
+      window.clearInterval(id);
+    };
+  }, []);
+  if (watching == null) return <Chip>Practice money only</Chip>;
+  return (
+    <Chip live>
+      <span role="status">{watching > 0 ? `Live now, watching ${watching} markets on paper` : 'Live now, on paper'}</span>
+    </Chip>
+  );
+}
+
+/**
  * Centred, because the promise is the design here: a chip, one headline, one sentence, two actions.
  * Below it a turning planet you can spin rises behind the real cockpit, framed by a bar of light.
  */
@@ -34,7 +64,7 @@ export function Hero() {
 
       <div className="mx-auto flex max-w-[880px] flex-col items-center px-4 text-center">
         <motion.div {...item(0)}>
-          <Chip>Practice money only</Chip>
+          <LiveChip />
         </motion.div>
         <motion.h1 {...item(0.06)} className="lp-silver mt-6 pb-2 text-[clamp(2.6rem,7vw,5rem)] font-semibold leading-[1.02] tracking-[-0.04em]">
           A trading partner that thinks first.
