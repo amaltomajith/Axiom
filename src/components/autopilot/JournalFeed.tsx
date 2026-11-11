@@ -11,6 +11,7 @@ import { CitationChip } from '@/components/MemoPanel';
 import { ratingLabel } from '@/lib/format';
 import type { DeskReview, JournalEntry, JournalKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { TranscriptLink } from './DeskTranscript';
 import { TRADER_KEY, shortTime } from './useTrader';
 
 type Variant = 'default' | 'solid' | 'neutral' | 'warning' | 'destructive' | 'outline';
@@ -61,6 +62,7 @@ function Row({ e }: { e: JournalEntry }) {
           ))}
         </p>
       )}
+      {desk?.run_id && e.session === 'live' && <TranscriptLink runId={desk.run_id} className="mt-2" />}
       {Object.keys(e.facts).length > 0 && (
         <details className="mt-1">
           <summary className="w-fit cursor-pointer text-caption text-muted-foreground hover:text-foreground">Facts behind this entry</summary>

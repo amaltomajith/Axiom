@@ -8,6 +8,7 @@ fraction<->percent).
 from __future__ import annotations
 
 import re
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 
 from .schemas import Claim
@@ -20,6 +21,11 @@ _NUM = re.compile(
     + r"\s?(?:%|percent\b|[kKmMbBtT](?:illion|n)?\b)?"
 )
 _SUFFIX = {"k": 1e3, "m": 1e6, "b": 1e9, "t": 1e12}
+
+# Off by default: the recorded evals were made with strict signs, and their repair prompts are keyed on it.
+# The trading desk turns it on for its own runs, because in a falling market every analyst writes
+# "down 11.51%" for a tool value of -11.51 and a strict gate would then reject every true statement.
+UNSIGNED_MATCHES_NEGATIVE: ContextVar[bool] = ContextVar("unsigned_matches_negative", default=False)
 
 
 def parse_numbers(text: str) -> list[tuple[float, int, bool, str]]:
@@ -52,6 +58,10 @@ def _matches(claim_val: float, decimals: int, pct: bool, evidence: list[float]) 
     percent (6.4) or stored as a fraction (0.064). Tolerance is the claim's rounding precision, or 1%
     relative (for suffix-rounded magnitudes such as $416.2B)."""
     tol_abs = 0.5 * 10**-decimals + 1e-9
+    if claim_val >= 0 and UNSIGNED_MATCHES_NEGATIVE.get():
+        # Prose puts the direction in words ("down 11.51%" for a tool value of -11.51), so an unsigned
+        # figure may match the size of a negative one. A claim written with a minus sign must match exactly.
+        evidence = [abs(ev) for ev in evidence] + list(evidence)
     for ev in evidence:
         for form in (ev, ev * 100) if pct else (ev,):
             if abs(claim_val - form) <= tol_abs:

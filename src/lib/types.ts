@@ -411,9 +411,64 @@ export interface DeskReview {
   error: string | null;
 }
 
+export type DeskTrigger = 'signal' | 'alert' | 'manual';
+
+/** What the desk did with a review, by fixed rules: go ahead, half size, veto, or leave it to the rules. */
+export interface DeskOutcome {
+  action: 'go' | 'half' | 'veto' | 'rules';
+  size_factor: number;
+  why: string;
+}
+
+export interface DeskClaim {
+  text: string;
+  evidence: string[];
+}
+
+export interface DeskFinding {
+  agent: string;
+  stance: string;
+  confidence: number;
+  summary: string;
+  claims: DeskClaim[];
+  caveats: string[];
+}
+
+/** One saved desk review, as listed under Past reviews. */
+export interface DeskRunBrief {
+  run_id: string;
+  symbol: string;
+  strategy: string | null;
+  trigger: DeskTrigger;
+  started_at: number;
+  finished_at: number | null;
+  hold_policy?: string;
+  review: DeskReview;
+  outcome: DeskOutcome;
+  recorded?: boolean;
+}
+
+/** The same review in full: every step, each agent's claims, the plan and the sources it cites. */
+export interface DeskRun extends DeskRunBrief {
+  events: DeskEvent[];
+  findings?: DeskFinding[];
+  memo?: { bull_case: DeskClaim[]; bear_case: DeskClaim[]; key_risks: string[]; what_would_change_my_mind: string[]; horizon_days: number };
+  plan?: Record<string, unknown>;
+  sources?: Record<string, EvidenceRef>;
+}
+
+/** How trades the desk refused (or cut in size) turned out. */
+export interface NotTakenTally {
+  graded: number;
+  open: number;
+  would_have_won: number;
+  would_have_lost: number;
+  avg_return_pct: number | null;
+}
+
 export interface DeskStatus {
   enabled: boolean;
-  runs: Record<string, { review: DeskReview | null; events: DeskEvent[]; started_at: number; strategy: string | null }>;
+  runs: Record<string, { review: DeskReview | null; events: DeskEvent[]; started_at: number; strategy: string | null; trigger?: DeskTrigger; run_id?: string | null; outcome?: DeskOutcome }>;
   reviewing: string[];
   runs_left?: number;
   max_runs_per_hour?: number;
@@ -515,6 +570,7 @@ export interface CalibrationResponse {
   all: CalibrationSummary;
   recent: CalibrationSummary;
   ladder?: LadderProgress;
+  not_taken?: { vetoes: NotTakenTally; halved: NotTakenTally };
 }
 
 export interface EquityPoint {

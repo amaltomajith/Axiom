@@ -9,6 +9,7 @@ import { useChartTheme } from '@/hooks/useChartTheme';
 import { trader } from '@/lib/api';
 import { money, num, pct } from '@/lib/format';
 import type { TradeContract } from '@/lib/types';
+import { notTakenLine } from './deskModel';
 import { cn } from '@/lib/utils';
 import { strategyLabel } from './labels';
 import { TRADER_KEY, shortDate, shortTime } from './useTrader';
@@ -128,6 +129,7 @@ export function Contracts({ session, className }: { session: string; className?:
     refetchInterval: 30_000,
   });
   const all = cal.data?.all;
+  const refused = notTakenLine(cal.data?.not_taken?.vetoes);
   const rows = [...(contracts.data ?? [])].sort((a, b) => b.created_at - a.created_at).slice(0, 25);
   const buckets = (all?.buckets ?? []).map(b => ({
     band: `${Math.round(b.lo * 100)} to ${Math.round(b.hi * 100)}%`,
@@ -144,6 +146,18 @@ export function Contracts({ session, className }: { session: string; className?:
       description="Before each entry the agent states its odds, target and exits. Each contract is graded when it closes."
       actions={all?.brier != null && <Badge variant={all.brier <= 0.25 ? 'default' : 'warning'}>Brier {num(all.brier, 3)}</Badge>}
     >
+      {refused && (
+        <div className="shrink-0 border-t border-border px-5 py-4 sm:px-6" aria-label="Trades not taken">
+          <p className="text-caption font-medium uppercase tracking-[0.12em] text-muted-foreground">Trades not taken</p>
+          <p className="mt-1.5 text-small leading-relaxed">{refused}</p>
+          {cal.data?.not_taken?.vetoes.avg_return_pct != null && (
+            <p className="mt-1 text-caption text-muted-foreground">
+              Average result of the refused trades: {cal.data.not_taken.vetoes.avg_return_pct > 0 ? '+' : ''}
+              {cal.data.not_taken.vetoes.avg_return_pct.toFixed(2)}%. Refusals are graded apart and never count toward the agent's own record.
+            </p>
+          )}
+        </div>
+      )}
       {!all?.n && !rows.length ? (
         <EmptyState
           icon={FileCheck2}

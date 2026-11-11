@@ -7,7 +7,13 @@ import pytest
 
 from axiom.agents import orchestrator as orch
 from axiom.agents import prompts
-from axiom.agents.faithfulness import Evidence, check_claim, check_claims, parse_numbers
+from axiom.agents.faithfulness import (
+    UNSIGNED_MATCHES_NEGATIVE,
+    Evidence,
+    check_claim,
+    check_claims,
+    parse_numbers,
+)
 from axiom.agents.jsonutil import extract_json
 from axiom.agents.orchestrator import analyze
 from axiom.agents.policy import apply_policy, technical_expected_stance
@@ -321,6 +327,15 @@ def test_faithfulness_rounding_units_and_ids():
     assert check_claim(Claim(text="Something happened today.", evidence=[]), ev)
     assert "unknown evidence" in check_claim(Claim(text="Price is 340.97", evidence=["T99"]), ev)[0]
     assert parse_numbers("A -3.5% drop")[0][0] == -3.5
+    # a fall is usually written in words: "down 11.51%" is true of a tool value of -11.51
+    eid2 = ev.add("get_price_summary", {}, '{"returns_pct": {"1m": -11.51, "6m": 4.2}}')
+    down = lambda text: not check_claim(Claim(text=text, evidence=[eid2]), ev)  # noqa: E731
+    assert not down("It is down 11.51% over the past month.")  # strict by default (the recorded evals)
+    token = UNSIGNED_MATCHES_NEGATIVE.set(True)  # the trading desk's setting
+    assert down("It is down 11.51% over the past month.") and down("The month returned -11.51%.")
+    assert not down("The six month return was -4.2%.")  # a written minus sign must match the sign
+    assert not down("It is down 12.9% over the past month.")
+    UNSIGNED_MATCHES_NEGATIVE.reset(token)
 
 
 def _memo(rating, conviction=0.9):

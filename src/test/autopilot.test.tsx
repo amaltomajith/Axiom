@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { DeskEvent, DeskReview, JournalEntry, TraderStatus } from '@/lib/types';
+import type { DeskEvent, DeskReview, DeskRun, JournalEntry, TraderStatus } from '@/lib/types';
 
 const mocks = vi.hoisted(() => ({
   status: vi.fn(),
@@ -15,6 +15,10 @@ const mocks = vi.hoisted(() => ({
   replays: vi.fn(),
   scenarios: vi.fn(),
   desk: vi.fn(),
+  deskRuns: vi.fn(),
+  deskRun: vi.fn(),
+  deskRecorded: vi.fn(),
+  reviewNow: vi.fn(),
   kill: vi.fn(),
   resume: vi.fn(),
   start: vi.fn(),
@@ -32,7 +36,7 @@ vi.mock('@/lib/api', async orig => ({ ...(await orig<typeof import('@/lib/api')>
 
 import { AutopilotTab } from '@/components/autopilot/AutopilotTab';
 import { Ladder, RiskBudget } from '@/components/autopilot/ControlBar';
-import { deskSteps, gateRows, regimeSummary } from '@/components/autopilot/deskModel';
+import { deskSteps, gateRows, notTakenLine, outcomeLabel, regimeSummary, transcript } from '@/components/autopilot/deskModel';
 
 const STATUS: TraderStatus = {
   ok: true,
@@ -104,6 +108,7 @@ beforeEach(() => {
   mocks.replays.mockResolvedValue([]);
   mocks.scenarios.mockResolvedValue([]);
   mocks.desk.mockResolvedValue({ enabled: false, runs: {}, reviewing: [] });
+  mocks.deskRuns.mockResolvedValue([]);
   mocks.kill.mockResolvedValue({ ok: true, closed: 1 });
   mocks.approve.mockResolvedValue({ ok: true });
 });
@@ -207,6 +212,129 @@ describe('trading desk', () => {
     renderTab();
     expect(await screen.findByText(/four-agent review is switched off/)).toBeInTheDocument();
     expect(await screen.findByText('Requested 1,000,000.')).toBeInTheDocument();
+  });
+});
+
+const RUN: DeskRun = {
+  run_id: 'run1',
+  symbol: 'BTC/USD',
+  strategy: 'sma_cross',
+  trigger: 'manual',
+  started_at: 1_762_000_000,
+  finished_at: 1_762_000_095,
+  review: REVIEW,
+  outcome: { action: 'half', size_factor: 0.5, why: 'the Risk Critic raised issues: The last three breakout trades hit their stops.' },
+  events: [
+    ev(1, 'system', 'run_start'),
+    ev(2, 'Technical Analyst', 'tool_call', { tool: 'run_backtest', args: { ticker: 'BTC-USD', strategy: 'sma_cross' } }),
+    ev(3, 'Technical Analyst', 'tool_result', { tool: 'run_backtest', ok: true, evidence_id: 'T1' }),
+    ev(4, 'Technical Analyst', 'tool_call', { tool: 'get_news', args: { ticker: 'BTC-USD' } }),
+    ev(5, 'Risk Guard', 'tool_call', { tool: 'get_risk_metrics', args: { ticker: 'BTC-USD' } }),
+    ev(6, 'Risk Guard', 'tool_result', { tool: 'get_risk_metrics', ok: false, preview: 'provider timed out' }),
+    ev(7, 'Lead Synthesizer', 'memo_draft', { rating: 'STRONG_BUY', conviction: 0.8 }),
+    ev(8, 'Policy', 'guardrail', { name: 'policy_cap', detail: 'Capped at Buy: one analyst had no view.' }),
+    ev(9, 'Risk Critic', 'critique', { ok: false, issues: ['The last three breakout trades hit their stops.'] }),
+  ],
+  findings: [
+    {
+      agent: 'Technical Analyst',
+      stance: 'bullish',
+      confidence: 0.7,
+      summary: 'A backtest found an edge.',
+      claims: [{ text: 'The backtest verdict is edge detected.', evidence: ['T1'] }],
+      caveats: [],
+    },
+  ],
+  memo: {
+    bull_case: [{ text: 'Trend and backtest agree.', evidence: ['T1'] }],
+    bear_case: [{ text: 'Volatility is rising.', evidence: [] }],
+    key_risks: ['A sharp reversal.'],
+    what_would_change_my_mind: ['A close under the 50 day average.'],
+    horizon_days: 30,
+  },
+  sources: REVIEW.sources,
+};
+
+describe('desk transcript', () => {
+  it('pairs each tool call with its result and keeps the order of the story', () => {
+    const t = transcript(RUN);
+    expect(t.analysts.map(a => a.name)).toEqual(['Technical Analyst', 'Fundamental Auditor']);
+    expect(t.analysts[0].tools).toEqual([
+      { tool: 'run_backtest', args: 'ticker=BTC-USD, strategy=sma_cross', ok: true, result: 'saved as T1' },
+      { tool: 'get_news', args: 'ticker=BTC-USD', ok: null, result: 'no result recorded' },
+    ]);
+    expect(t.analysts[0].finding?.claims[0].evidence).toEqual(['T1']);
+    expect(t.analysts[1]).toMatchObject({ tools: [], finding: undefined });
+    expect(t.risk[0]).toMatchObject({ ok: false, result: 'failed: provider timed out' });
+    expect(t.draft).toBe('STRONG_BUY');
+    expect(t.issues).toEqual(['The last three breakout trades hit their stops.']);
+    expect(t.guards).toEqual(['policy cap: Capped at Buy: one analyst had no view.']);
+  });
+
+  it('names what the desk did in plain words', () => {
+    expect(outcomeLabel(RUN.outcome)).toMatchObject({ text: 'Half size', tone: 'warning' });
+    expect(outcomeLabel(RUN.outcome).detail).toMatch(/half the size the risk rules allow\. The Risk Critic raised issues/);
+    expect(outcomeLabel({ action: 'veto', size_factor: 0, why: 'the desk rated it HOLD' }).detail).toMatch(/refused the entry\. The desk rated it HOLD\. The refused trade is tracked/);
+    expect(outcomeLabel({ action: 'go', size_factor: 1, why: '' }).text).toBe('Go ahead');
+    expect(outcomeLabel(undefined).text).toBe('No view');
+    const idle = outcomeLabel({ action: 'veto', size_factor: 0, why: 'the desk rated it HOLD' }, false);
+    expect(idle.text).toBe('Would refuse'); // no strategy was signalling: nothing was refused or tracked
+    expect(idle.detail).toBe('The desk would refuse an entry here. The desk rated it HOLD. No strategy was signalling a buy, so nothing was proposed.');
+  });
+
+  it('opens the full review from the Live run card', async () => {
+    mocks.status.mockResolvedValue({ ...STATUS, brain: 'desk', symbols: ['BTC/USD'] });
+    mocks.desk.mockResolvedValue({
+      enabled: true,
+      runs_left: 5,
+      reviewing: [],
+      runs: { 'BTC/USD': { review: REVIEW, events: EVENTS, started_at: 1_762_000_000, strategy: 'sma_cross', trigger: 'manual', run_id: 'run1', outcome: RUN.outcome } },
+    });
+    mocks.deskRuns.mockResolvedValue([{ ...RUN, events: undefined }]);
+    mocks.deskRun.mockResolvedValue(RUN);
+    mocks.reviewNow.mockResolvedValue({ ok: true, symbol: 'BTC/USD', strategy: 'sma_cross', runs_left: 4 });
+    renderTab();
+    const card = (await screen.findByRole('heading', { name: 'Live run' })).closest('section')!;
+    expect(await within(card).findByText(/Why it started: a human asked for it/)).toBeInTheDocument();
+    expect(await within(card).findByRole('list', { name: 'Past reviews' })).toBeInTheDocument();
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Review BTC/USD now' }));
+    await waitFor(() => expect(mocks.reviewNow).toHaveBeenCalled());
+    expect(mocks.reviewNow.mock.calls[0][0]).toBe('BTC/USD');
+
+    fireEvent.click(within(card).getAllByRole('button', { name: 'Read the full review' })[0]);
+    const dialog = await screen.findByRole('dialog');
+    expect(await within(dialog).findByText('The case for')).toBeInTheDocument();
+    expect(within(dialog).getByText('Volatility is rising.')).toBeInTheDocument();
+    expect(within(dialog).getByText('run_backtest')).toBeInTheDocument();
+    expect(within(dialog).getByText('Half size')).toBeInTheDocument();
+    expect(within(dialog).getByText(/First draft: Strong buy\. Final: Buy\./)).toBeInTheDocument();
+    expect(mocks.deskRun).toHaveBeenCalledWith('run1');
+  });
+});
+
+describe('trades not taken', () => {
+  it('says how the refused trades turned out', () => {
+    expect(notTakenLine(undefined)).toBeNull();
+    expect(notTakenLine({ graded: 0, open: 0, would_have_won: 0, would_have_lost: 0, avg_return_pct: null })).toBeNull();
+    expect(notTakenLine({ graded: 0, open: 1, would_have_won: 0, would_have_lost: 0, avg_return_pct: null })).toBe('The desk has refused 1 trade. It is still being tracked.');
+    expect(notTakenLine({ graded: 7, open: 1, would_have_won: 2, would_have_lost: 5, avg_return_pct: -1.4 })).toBe(
+      'The desk refused 7 trades that have now played out. 5 would have lost money. 2 would have made money.',
+    );
+  });
+
+  it('shows the tile next to the contracts', async () => {
+    mocks.calibration.mockResolvedValue({
+      all: { n: 0, brier: null, win_rate: null, mean_confidence: null, buckets: [], grades: {}, shadow: 0, net_return_pct: 0 },
+      recent: {},
+      not_taken: {
+        vetoes: { graded: 3, open: 0, would_have_won: 1, would_have_lost: 2, avg_return_pct: -0.67 },
+        halved: { graded: 0, open: 0, would_have_won: 0, would_have_lost: 0, avg_return_pct: null },
+      },
+    });
+    renderTab();
+    expect(await screen.findByText('The desk refused 3 trades that have now played out. 2 would have lost money. 1 would have made money.')).toBeInTheDocument();
+    expect(screen.getByText(/Average result of the refused trades: -0.67%/)).toBeInTheDocument();
   });
 });
 

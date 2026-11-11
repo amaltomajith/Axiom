@@ -30,7 +30,7 @@ use information a live run would not have had.
 | `tournament.py` | Every 21 bars, scores 5 strategies on the trailing 252 bars net of costs; only qualifiers may trade | price history only |
 | `brain.py`, `llm_brain.py` | Turns signals into an `OrderIntent` with a stop and no quantity. The LLM brain may only pick a qualified, signalling strategy or stay flat; its output schema forbids extra fields and its thesis numbers are checked against the facts given. Any failure falls back to the rule brain, marked degraded | the tournament |
 | `desk.py` | `DeskBrain` (`TRADER_BRAIN=desk`) wraps the rule brain. For each candidate entry it runs the research pipeline (`agents/orchestrator.analyze`, unchanged) in the background and maps the memo to a decision: Sell vetoes; Hold vetoes or halves (`TRADER_DESK_HOLD`); Buy goes ahead, at half size if the Critic objected or conviction is under 0.5. Failure, timeout or the hourly cap falls back to the rule brain, marked degraded. A review is cached per symbol for four hours | the tournament; never sets a quantity |
-| `alerts.py` | Flags a completed bar with 2.5 times the usual volume or range. The live loop journals it once and drops the cached desk review for that symbol. An alert never trades | price history only |
+| `alerts.py` | Flags a completed bar with 2.5 times the usual volume or range. The live loop journals it once, drops the cached desk review for that symbol and, when the desk is on, starts a fresh review within the hourly cap. An alert never trades | price history only |
 | `mcp_tools.py` | The five paper-trading MCP tools. Orders take no quantity and go through `Engine.propose`, so the kernel sizes or blocks them and Supervised mode queues them for a human. `modify_stop_loss` only moves a stop up | the kernel |
 | `scenarios.py` | Three windows of real daily history replayed through the same engine: breakout, flash crash, trojan headline. Each has an expected outcome that the replay must reach | price history only |
 | `risk.py` | `RiskKernel.review`: pure code, rules R0 to R12 (kill switch, paper only, allowlist, daily loss halt, stale data, mandatory stop, sizing at 1% risk, 20% position cap, gross exposure, max positions, trades per day, cooldown after a stop, autonomy level). Exits that reduce risk are always allowed | nothing the LLM says |
@@ -39,6 +39,26 @@ use information a live run would not have had.
 | `autonomy.py` | The ladder `SHADOW` to `SUPERVISED` to `AUTONOMOUS`: promotion from graded contracts, Brier and net return; demotion on a daily loss halt, a losing streak or poor calibration. A human-set level is a ceiling | graded contracts |
 | `journal.py` | Template text from facts; an LLM rewrite is kept only if every number in it is in the facts. Each entry is sha256 chained to the previous one; `verify_chain` finds any edit | facts |
 | `service.py`, `api.py` | `/api/trader/*`: public reads, token-guarded controls, Time Machine jobs, server-sent events | |
+
+### How the agents interact, and how to read what they did
+
+The exchange is fixed, not a free conversation: the Technical Analyst and the Fundamental Auditor work alone and in
+parallel, each calling MCP tools; the Risk Guard (code) measures risk and the size the rules allow; the Lead
+Synthesizer reads every finding and writes a case for and a case against; the Risk Critic challenges that plan and
+the Synthesizer may revise once; the policy guard (code) caps the rating. `desk.outcome_of` then maps the rating to
+`go`, `half`, `veto` or `rules` (no view).
+
+Every review is saved whole (`ledger.save_review`, table `desk_reviews`): the trace steps, each agent's claims with
+evidence ids, the bull and bear cases, the Critic's issues, the sources and the outcome. `GET /api/trader/desk/runs`
+lists them and `GET /api/trader/desk/runs/{run_id}` returns one; the cockpit shows it as a transcript.
+`POST /api/trader/desk/review` (and a watchlist alert) starts a review outside the loop through
+`Engine.start_review`. The review orders nothing. If a qualified strategy is signalling, the result goes through
+`Engine.propose`, so the kernel sizes or blocks it and Supervised mode queues it for a human.
+
+A desk veto opens a virtual contract (`ContractBook.open_veto`, `vetoed_by: "desk"`) on the trade that was refused,
+sized by the kernel and never sent to a broker. It is graded by the same code as a shadow contract. Refused trades
+are excluded from calibration, outcome memory by regime and the autonomy ladder; `veto_scorecard` reports them
+apart, and one line of it is added to the memory the agents receive.
 
 Why the LLM is never backtested: a model trained on market history can remember what happened next, so a historical
 backtest of it would look better than it is. It is judged only forward, on paper, by its own contracts.

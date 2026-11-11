@@ -31,6 +31,7 @@ from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from axiom.agents.faithfulness import UNSIGNED_MATCHES_NEGATIVE
 from axiom.agents.orchestrator import AnalysisResult, analyze
 from axiom.agents.toolbox import McpToolBox, ToolBox
 from axiom.agents.trace import TraceEvent, Tracer
@@ -329,6 +330,8 @@ class DeskBrain:
         self.last[sym]["run_id"] = tracer.run_id
 
         async def work() -> AnalysisResult:
+            # "down 11.51%" is a true reading of a tool value of -11.51 (see faithfulness.py)
+            UNSIGNED_MATCHES_NEGATIVE.set(True)
             async with self.box_factory() as box:
                 return await self.analyzer(
                     parse(sym).yahoo,

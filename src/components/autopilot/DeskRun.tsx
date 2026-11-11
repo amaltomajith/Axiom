@@ -1,15 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
-import { Check, CircleDashed, Loader2, Minus, Users, X } from 'lucide-react';
+import { Check, CircleDashed, Loader2, Minus, Play, Users, X } from 'lucide-react';
 import { CitationChip } from '@/components/MemoPanel';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/kit/EmptyState';
 import { Section } from '@/components/kit/Surface';
 import { trader } from '@/lib/api';
 import { frac } from '@/lib/format';
-import type { DeskStatus, JournalEntry } from '@/lib/types';
+import type { DeskRunBrief, DeskStatus, JournalEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
-import { deskSteps, gateRows, type StepState } from './deskModel';
-import { TRADER_KEY, shortTime } from './useTrader';
+import { TranscriptLink } from './DeskTranscript';
+import { TRIGGER, deskSteps, gateRows, outcomeLabel, type StepState } from './deskModel';
+import { TRADER_KEY, shortTime, useTraderAction } from './useTrader';
 
 function StepIcon({ state }: { state: StepState }) {
   const Icon = state === 'done' ? Check : state === 'working' ? Loader2 : state === 'failed' ? Minus : CircleDashed;
@@ -43,7 +45,9 @@ function Agents({ desk }: { desk: DeskStatus }) {
         <span className="text-muted-foreground">review started {shortTime(run.started_at)}</span>
         {running && <Badge variant="default">Reviewing now</Badge>}
         {!running && r?.error && <Badge variant="warning">No view, the rules decided</Badge>}
+        {!running && !r?.error && run.outcome && <Badge variant={outcomeLabel(run.outcome, Boolean(run.strategy)).tone}>{outcomeLabel(run.outcome, Boolean(run.strategy)).text}</Badge>}
       </p>
+      <p className="px-5 pt-1 text-caption text-muted-foreground sm:px-6">Why it started: {(TRIGGER[run.trigger ?? 'signal'] ?? 'A strategy signalled a buy').toLowerCase()}.</p>
       <ol className="px-5 py-3 sm:px-6" aria-label="Agent steps">
         {steps.map(s => (
           <li key={s.name} className="flex gap-3 py-2.5">
@@ -67,6 +71,34 @@ function Agents({ desk }: { desk: DeskStatus }) {
         </p>
       )}
       {r?.error && <p className="border-t border-border px-5 py-3 text-caption text-muted-foreground sm:px-6">Why there was no view: {r.error}.</p>}
+      {!running && run.run_id && (
+        <p className="border-t border-border px-5 py-3 sm:px-6">
+          <TranscriptLink runId={run.run_id} />
+        </p>
+      )}
+    </div>
+  );
+}
+
+function PastReviews({ runs }: { runs: DeskRunBrief[] }) {
+  if (!runs.length) return null;
+  return (
+    <div className="border-t border-border">
+      <h3 className="px-5 pt-4 text-caption font-medium uppercase tracking-[0.12em] text-muted-foreground sm:px-6">Past reviews</h3>
+      <ul className="max-h-64 overflow-y-auto px-5 py-2 sm:px-6" aria-label="Past reviews">
+        {runs.map(r => {
+          const out = outcomeLabel(r.outcome, Boolean(r.strategy));
+          return (
+            <li key={r.run_id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-border py-2.5 text-small last:border-b-0">
+              <span className="font-mono font-medium">{r.symbol}</span>
+              <span className="tnum text-caption text-muted-foreground">{shortTime(r.started_at)}</span>
+              <Badge variant={out.tone}>{out.text}</Badge>
+              <span className="text-caption text-muted-foreground">{(TRIGGER[r.trigger] ?? '').toLowerCase()}</span>
+              <TranscriptLink runId={r.run_id} label="Read" className="ml-auto" />
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
@@ -113,7 +145,7 @@ function Gate({ entry, limit }: { entry: JournalEntry | undefined; limit: string
 }
 
 /** The desk at work: each agent's step as it happens, then the gate every order has to pass. */
-export function DeskRun({ session, lossLimit, className }: { session: string; lossLimit?: number; className?: string }) {
+export function DeskRun({ session, lossLimit, symbols, className }: { session: string; lossLimit?: number; symbols?: string[]; className?: string }) {
   const live = session === 'live';
   const desk = useQuery({
     queryKey: [TRADER_KEY, 'desk'],
@@ -127,6 +159,14 @@ export function DeskRun({ session, lossLimit, className }: { session: string; lo
     queryFn: () => trader.journal(session, 300),
     refetchInterval: 15_000,
   });
+  const past = useQuery({
+    queryKey: [TRADER_KEY, 'desk', 'runs'],
+    queryFn: trader.deskRuns,
+    enabled: live,
+    refetchInterval: 30_000,
+    retry: false,
+  });
+  const review = useTraderAction(trader.reviewNow, r => `The desk is reviewing ${r.symbol}. Watch the steps arrive below.`);
   const gated = [...(journal.data ?? [])].reverse().find(e => Array.isArray(e.facts.checks) && ['entry', 'proposal', 'blocked'].includes(e.kind));
   const limit = frac(lossLimit ?? 0.025, 1);
   const d = desk.data;
@@ -139,6 +179,26 @@ export function DeskRun({ session, lossLimit, className }: { session: string; lo
       description="Four agents review each trade idea, then plain code decides if it may go ahead"
       actions={d?.enabled && d.runs_left != null ? <Badge variant="neutral">{d.runs_left} reviews left this hour</Badge> : undefined}
     >
+      {live && (
+        <div className="flex flex-wrap items-center gap-2 border-t border-border px-5 py-3 sm:px-6">
+          {d?.enabled &&
+            (symbols ?? []).map(sym => (
+              <Button
+                key={sym}
+                size="xs"
+                variant="secondary"
+                disabled={review.isPending || d.reviewing.includes(sym) || d.runs_left === 0}
+                onClick={() => review.mutate(sym)}
+                aria-label={`Review ${sym} now`}
+              >
+                <Play aria-hidden />
+                Review {sym} now
+              </Button>
+            ))}
+          <TranscriptLink recorded label="Play a recorded review" />
+          <span className="text-caption text-muted-foreground">A review only reviews. Any order still passes the gate and waits for you in Supervised mode.</span>
+        </div>
+      )}
       {nothing && !d?.enabled ? (
         <EmptyState
           icon={Users}
@@ -166,6 +226,7 @@ export function DeskRun({ session, lossLimit, className }: { session: string; lo
           </div>
         </div>
       )}
+      {live && <PastReviews runs={past.data ?? []} />}
     </Section>
   );
 }

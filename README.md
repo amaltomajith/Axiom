@@ -46,9 +46,17 @@ Ollama model, plus Alpaca's free paper account and data. Nebius Token Factory cr
    `close_paper_position`, `emergency_flatten_all` and `get_past_trade_outcomes` (results by market regime).
 8. **Three replayable scenarios** cut from real price history: a breakout that ends in a graded contract, a crash
    that trips the daily loss halt, and a poisoned headline that is flagged and ignored.
-9. **Watchlist alerts.** A bar with 2.5 times the usual volume or range is journaled, and any saved desk review for
-   that symbol is dropped so the next idea is reviewed afresh. An alert never trades.
-10. **Reports that can say no.** The current report's verdict is `no_edge`: the agent made +4.9% over 3.4 years against
+9. **Watchlist alerts.** A bar with 2.5 times the usual volume or range is journaled and, when the desk is on,
+   starts a fresh four-agent review within the hourly cap. An alert never trades.
+10. **Every review can be read in full.** Each desk review is saved: every tool call, each agent's claims with the
+   evidence they cite, the case for against the case against, the Critic's objections and what the desk did with
+   it. Open it from the Live run card or from any journal row. **Review now** starts one on demand; it only
+   reviews, and any order that follows still passes the kernel and waits for a human in Supervised mode.
+11. **The desk is graded on the trades it refused.** A veto opens a virtual contract on the trade that was not
+   taken. It is followed to its stop or exit signal and graded, so the cockpit can say "the desk refused 7 trades,
+   5 would have lost money". Refusals are kept out of the agent's own calibration and the autonomy ladder, and the
+   tally is fed back to the agents as memory.
+12. **Reports that can say no.** The current report's verdict is `no_edge`: the agent made +4.9% over 3.4 years against
    +123.8% for buy-and-hold, with a smaller drawdown (-23.4% against -31.3%). It is published anyway.
 
 ```
@@ -131,7 +139,11 @@ Tests never touch the network: `SimBroker`, a fake `TradingClient`, `ScriptedLLM
   crypto and 10 bps on equities to stay conservative.
 - The desk is strict. The Technical Analyst only calls a symbol bullish when a backtest shows an edge, so most
   reviews end in Hold, and by default a Hold vetoes the entry. `TRADER_DESK_HOLD=half` takes half size instead.
-- A desk review takes one to four minutes on free models and is capped at 6 per hour. The Time Machine and the
+- The agents do not talk freely to each other. The two analysts work in parallel, the Synthesizer argues both
+  sides from their findings, and the Critic challenges the plan once. That is the whole exchange.
+- For desk runs only, the number check lets "down 11.51%" match a tool value of -11.51. The research tab and the
+  recorded evals keep the strict rule, because their recordings are keyed on it.
+- A desk review takes half a minute to four minutes on free models and is capped at 6 per hour. The Time Machine and the
   scenarios replay the rules only, never an AI, because a model may remember what happened next.
 - Free LLM tiers rate-limit; calls are capped per hour and any failure falls back to the rule brain, marked degraded.
 
@@ -146,7 +158,7 @@ backend/axiom/trading/            risk kernel, brokers (sim, Alpaca paper), engi
 backend/axiom/quant/              indicators, regime, sizing, backtest maths (shared with research)
 backend/axiom/agents/, mcp_server/  the research agents and the 16 MCP tools (11 research, 5 paper trading)
 backend/axiom/llm/                free LLM fallback chain with budgets and a scripted fake
-docs/                             architecture, backtest report, deployment, MCP clients, eval report
+docs/                             architecture, backtest report, demo script, deployment, MCP clients, eval report
 ```
 
 ## License

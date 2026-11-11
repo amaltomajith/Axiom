@@ -5,6 +5,8 @@ import type {
   BacktestResponse,
   CalibrationResponse,
   ChainCheck,
+  DeskRun,
+  DeskRunBrief,
   DeskStatus,
   EquityPoint,
   ForecastResponse,
@@ -155,6 +157,9 @@ export const trader = {
   replays: () => request<ReplayJob[]>('/api/trader/replays'),
   scenarios: () => request<Scenario[]>('/api/trader/scenarios'),
   desk: () => request<DeskStatus>('/api/trader/desk'),
+  deskRuns: () => request<DeskRunBrief[]>('/api/trader/desk/runs'),
+  deskRun: (id: string) => request<DeskRun>(`/api/trader/desk/runs/${enc(id)}`),
+  deskRecorded: () => request<DeskRun>('/api/trader/desk/recorded'),
 
   kill: (reason: string) => post<{ ok: boolean; closed: number }>('/api/trader/kill', { reason }),
   resume: () => post<{ ok: boolean }>('/api/trader/resume'),
@@ -166,6 +171,7 @@ export const trader = {
   replay: (bars: number, delay: number, scenario?: string) => post<ReplayJob>('/api/trader/replay', scenario ? { delay, scenario } : { bars, delay }),
   stopReplay: (id: string) => post<ReplayJob>(`/api/trader/replays/${enc(id)}/stop`),
   redteam: () => post<RedteamResult>('/api/trader/redteam'),
+  reviewNow: (symbol: string) => post<{ ok: boolean; symbol: string; strategy: string | null; runs_left: number | null }>('/api/trader/desk/review', { symbol }),
   streamUrl: (session = 'live') => `${API_BASE}/api/trader/stream?${sess(session)}`,
 };
 
