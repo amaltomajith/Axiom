@@ -43,7 +43,7 @@ RULE_NAMES = {
 
 @dataclass(frozen=True)
 class RiskLimits:
-    daily_loss_limit_pct: float = 0.02
+    daily_loss_limit_pct: float = 0.025
     risk_per_trade: float = 0.01
     max_position_pct: float = 0.20
     max_gross_pct: float = 1.0

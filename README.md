@@ -20,7 +20,7 @@ Ollama model, plus Alpaca's free paper account and data. Nebius Token Factory cr
 | Reads market data and news | Alpaca intraday bars (crypto keyless, equities on IEX), yfinance daily bars; Alpaca news, point in time, sanitised, injection headlines redacted | `trading/data.py` | `test_trading_llm.py` |
 | Picks or adapts a strategy | Walk-forward tournament: 5 strategies scored on trailing out-of-sample windows per symbol; only qualifiers trade; none means cash | `trading/tournament.py` | `test_trading_engine.py` |
 | Backtest against buy-and-hold | **Time Machine**: the live engine replayed over history, so no look-ahead by construction; bootstrap verdict with a 95% CI | `trading/replay.py`, `report.py` | [docs/backtest-report.md](docs/backtest-report.md) |
-| Position sizing, stop-losses, daily loss limit | Kernel sizes every order at 1% equity risk, requires a stop (checked each tick and held at the broker), halts and flattens at a 2% daily loss | `trading/risk.py` | one test per rule R0 to R12 |
+| Position sizing, stop-losses, daily loss limit | Kernel sizes every order at 1% equity risk, requires a stop (checked each tick and held at the broker), halts and flattens at a 2.5% daily loss | `trading/risk.py` | one test per rule R0 to R12 |
 | Human kill switch, hard guardrails | Kill button, `POST /api/trader/kill`, CLI, or a `backend/KILL` file; flattens everything and blocks new entries until released | `trading/engine.py`, `api.py` | `test_trader_api.py` |
 | Plain-language journal per trade | Every decision, including trades *not* taken, in plain English with its facts, sha256 hash-chained so edits are detectable | `trading/journal.py` | chain check badge in the cockpit |
 
@@ -37,8 +37,8 @@ Ollama model, plus Alpaca's free paper account and data. Nebius Token Factory cr
    veto. Its numbers are checked against the facts it was given; any failure falls back to the rule brain. It is never
    backtested over history (models remember the past), only judged forward on paper by its contracts.
 5. **Red team button.** Fires an absurd order and a poisoned headline at the agent, live, and shows both being stopped.
-6. **Reports that can say no.** The current report's verdict is `no_edge`: the agent made +2.2% over 3.4 years against
-   +120.2% for buy-and-hold, with a smaller drawdown (-18.8% against -31.3%). It is published anyway.
+6. **Reports that can say no.** The current report's verdict is `no_edge`: the agent made +4.9% over 3.4 years against
+   +123.8% for buy-and-hold, with a smaller drawdown (-23.4% against -31.3%). It is published anyway.
 
 ```
 bars + news ──> tournament ──> Brain.decide ──> OrderIntent ──> RiskKernel.review ──> Broker ──> journal

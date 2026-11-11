@@ -18,6 +18,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from axiom.config import get_settings
 
+from . import scenarios
 from .service import TraderService
 
 LOOPBACK = {"127.0.0.1", "::1", "localhost"}
@@ -51,6 +52,7 @@ class ReplayIn(BaseModel):
     symbols: list[str] | None = Field(default=None, max_length=12)
     bars: int = Field(1000, ge=300, le=3000)
     delay: float = Field(0.0, ge=0.0, le=0.5)  # seconds per bar: 0 is as fast as possible
+    scenario: str | None = Field(default=None, pattern="^(breakout|flash_crash|trojan_headline)$")
 
 
 def build_router(svc: TraderService) -> APIRouter:
@@ -125,6 +127,10 @@ def build_router(svc: TraderService) -> APIRouter:
             raise HTTPException(404, "No backtest report yet: run `python -m axiom.trading backtest`")
         return rep
 
+    @r.get("/scenarios")
+    async def scenario_list():
+        return [s.to_dict() for s in scenarios.SCENARIOS.values()]
+
     @r.get("/replays")
     async def replays():
         return [j.to_dict() for j in sorted(svc.replays.values(), key=lambda j: -j.started_at)]
@@ -186,7 +192,7 @@ def build_router(svc: TraderService) -> APIRouter:
     @r.post("/replay", dependencies=ctl)
     async def start_replay(body: ReplayIn | None = None):
         b = body or ReplayIn()
-        job = await guard(svc.start_replay)(b.symbols, b.bars, b.delay)
+        job = await guard(svc.start_replay)(b.symbols, b.bars, b.delay, b.scenario)
         return job.to_dict()
 
     @r.post("/replays/{rid}/stop", dependencies=ctl)

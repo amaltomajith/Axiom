@@ -54,7 +54,7 @@ def test_crypto_is_sized_fractionally():
         ("R1", {"c": ctx(broker_is_paper=False)}),
         ("R1", {"account": acct(is_paper=False)}),
         ("R2", {"intent": entry("TSLA")}),
-        ("R3", {"account": acct(equity=97_900.0)}),
+        ("R3", {"account": acct(equity=97_400.0)}),
         ("R3", {"c": ctx(halted="daily loss limit")}),
         ("R4", {"c": ctx(data_age_seconds=10 * 86_400)}),
         ("R5", {"intent": entry(stop=None)}),
@@ -121,9 +121,9 @@ def test_exit_without_position_is_refused():
 
 
 def test_daily_loss_breach_boundary():
-    assert not daily_loss_breached(98_001, 100_000, 0.02)
-    assert daily_loss_breached(98_000, 100_000, 0.02)
-    assert review(account=acct(equity=98_000)).blocked_by == "R3"
+    assert not daily_loss_breached(97_501, 100_000, 0.025)
+    assert daily_loss_breached(97_500, 100_000, 0.025)
+    assert review(account=acct(equity=97_500)).blocked_by == "R3"
 
 
 def test_symbols_parse_every_spelling():

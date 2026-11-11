@@ -64,7 +64,7 @@ def test_reads_are_public_and_report_paper():
     with c:
         st = c.get("/api/trader/status").json()
         assert st["ok"] and st["paper"] is True and st["broker"] == "sim" and st["account"]["is_paper"]
-        assert st["budget"]["daily_loss_limit_pct"] == 0.02 and st["ladder"]["level"] == "AUTONOMOUS"
+        assert st["budget"]["daily_loss_limit_pct"] == 0.025 and st["ladder"]["level"] == "AUTONOMOUS"
         for path in ("positions", "orders", "journal", "journal/verify", "contracts", "calibration", "equity",
                      "tournament", "replays"):  # fmt: skip
             assert c.get(f"/api/trader/{path}").status_code == 200, path

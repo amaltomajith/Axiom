@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     trader_interval_seconds: int = 60  # how often the live loop ticks
     trader_starting_cash: float = 100_000.0  # SimBroker only
     trader_autonomy_start: str = "SUPERVISED"  # SHADOW | SUPERVISED | AUTONOMOUS
-    trader_daily_loss_limit_pct: float = 0.02
+    trader_daily_loss_limit_pct: float = 0.025
     trader_risk_per_trade: float = 0.01
     trader_max_position_pct: float = 0.20
     trader_max_gross_pct: float = 1.0

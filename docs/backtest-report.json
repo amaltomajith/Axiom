@@ -1,7 +1,7 @@
 {
  "title": "Axiom Autopilot backtest",
- "generated_at": "2026-11-11T12:13:37+00:00",
- "session": "replay:f02afd5d5f08",
+ "generated_at": "2026-11-11T16:57:01+00:00",
+ "session": "replay:6e7b55a77ec8",
  "period": {
   "start": "2023-06-13",
   "end": "2026-11-11",
@@ -20,178 +20,178 @@
  ],
  "start_cash": 100000.0,
  "agent": {
-  "total_return": 0.022,
-  "cagr": 0.0064,
-  "ann_vol": 0.1133,
-  "sharpe": 0.113,
-  "sortino": 0.159,
-  "max_drawdown": -0.1879,
-  "calmar": 0.034,
-  "exposure": 0.9367
+  "total_return": 0.0492,
+  "cagr": 0.0142,
+  "ann_vol": 0.1227,
+  "sharpe": 0.176,
+  "sortino": 0.254,
+  "max_drawdown": -0.2339,
+  "calmar": 0.061,
+  "exposure": 0.9423
  },
  "benchmark": {
-  "total_return": 1.2018,
-  "cagr": 0.2601,
-  "ann_vol": 0.2709,
-  "sharpe": 0.989,
-  "sortino": 1.45,
+  "total_return": 1.2385,
+  "cagr": 0.2662,
+  "ann_vol": 0.271,
+  "sharpe": 1.007,
+  "sortino": 1.477,
   "max_drawdown": -0.3127,
-  "calmar": 0.832,
+  "calmar": 0.851,
   "exposure": 1.0
  },
  "verdict": {
   "verdict": "no_edge",
   "message": "Strategy did not beat buy-and-hold on risk-adjusted terms.",
-  "sharpe_diff": -0.728,
+  "sharpe_diff": -0.69,
   "sharpe_diff_ci95": [
-   -1.407,
-   -0.032
+   -1.321,
+   -0.057
   ]
  },
  "fixed_strategies": {
   "sma_cross": {
-   "total_return": 0.8061,
-   "cagr": 0.189,
+   "total_return": 0.8043,
+   "cagr": 0.1887,
    "ann_vol": 0.151,
-   "sharpe": 1.224,
-   "sortino": 1.866,
+   "sharpe": 1.222,
+   "sortino": 1.863,
    "max_drawdown": -0.1481,
-   "calmar": 1.276
+   "calmar": 1.274
   },
   "macd_trend": {
-   "total_return": 0.2468,
-   "cagr": 0.0668,
+   "total_return": 0.2467,
+   "cagr": 0.0667,
    "ann_vol": 0.1348,
    "sharpe": 0.547,
-   "sortino": 0.799,
+   "sortino": 0.798,
    "max_drawdown": -0.2597,
    "calmar": 0.257
   },
   "rsi_reversion": {
-   "total_return": 0.128,
-   "cagr": 0.0359,
-   "ann_vol": 0.1202,
-   "sharpe": 0.352,
-   "sortino": 0.593,
+   "total_return": 0.1404,
+   "cagr": 0.0392,
+   "ann_vol": 0.1203,
+   "sharpe": 0.379,
+   "sortino": 0.638,
    "max_drawdown": -0.1485,
-   "calmar": 0.242
+   "calmar": 0.264
   },
   "donchian_breakout": {
-   "total_return": 0.3398,
-   "cagr": 0.0895,
+   "total_return": 0.3353,
+   "cagr": 0.0884,
    "ann_vol": 0.122,
-   "sharpe": 0.764,
-   "sortino": 1.118,
+   "sharpe": 0.756,
+   "sortino": 1.106,
    "max_drawdown": -0.2147,
-   "calmar": 0.417
+   "calmar": 0.412
   },
   "bollinger_reversion": {
-   "total_return": 0.2223,
-   "cagr": 0.0606,
-   "ann_vol": 0.1373,
-   "sharpe": 0.496,
-   "sortino": 0.815,
+   "total_return": 0.238,
+   "cagr": 0.0645,
+   "ann_vol": 0.1374,
+   "sharpe": 0.523,
+   "sortino": 0.86,
    "max_drawdown": -0.1427,
-   "calmar": 0.424
+   "calmar": 0.452
   }
  },
  "trades": {
-  "entries": 193,
-  "closed": 190,
-  "win_rate": 0.426,
-  "profit_factor": 1.082,
-  "avg_win": 1009.81,
-  "avg_loss": -693.47,
-  "fees_paid": 6819.23,
-  "turnover_x": 18.7
+  "entries": 182,
+  "closed": 178,
+  "win_rate": 0.427,
+  "profit_factor": 1.122,
+  "avg_win": 1006.0,
+  "avg_loss": -667.79,
+  "fees_paid": 6455.28,
+  "turnover_x": 17.74
  },
  "risk_events": {
-  "stop_outs": 56,
-  "daily_loss_halts": 9,
+  "stop_outs": 53,
+  "daily_loss_halts": 5,
   "blocked": {
-   "R11": 46,
-   "R3": 10,
-   "R9": 23,
+   "R11": 42,
+   "R9": 24,
+   "R3": 5,
    "R5": 1
   },
   "tournament_changes": 118
  },
  "per_symbol": {
   "BTC/USD": {
-   "buy_and_hold_return": 1.8493,
-   "agent_realized_pl": 6298.27,
-   "trades": 31
+   "buy_and_hold_return": 1.8595,
+   "agent_realized_pl": 6641.8,
+   "trades": 28
   },
   "ETH/USD": {
-   "buy_and_hold_return": 0.1802,
-   "agent_realized_pl": -985.92,
-   "trades": 22
+   "buy_and_hold_return": 0.1918,
+   "agent_realized_pl": -2090.45,
+   "trades": 21
   },
   "SPY": {
-   "buy_and_hold_return": 0.7937,
-   "agent_realized_pl": -275.01,
-   "trades": 31
-  },
-  "QQQ": {
-   "buy_and_hold_return": 0.8945,
-   "agent_realized_pl": -1634.18,
+   "buy_and_hold_return": 0.8172,
+   "agent_realized_pl": -566.52,
    "trades": 30
   },
+  "QQQ": {
+   "buy_and_hold_return": 0.9452,
+   "agent_realized_pl": 672.51,
+   "trades": 29
+  },
   "AAPL": {
-   "buy_and_hold_return": 0.9295,
-   "agent_realized_pl": 4065.44,
-   "trades": 27
+   "buy_and_hold_return": 0.962,
+   "agent_realized_pl": 4424.34,
+   "trades": 24
   },
   "NVDA": {
-   "buy_and_hold_return": 3.1297,
-   "agent_realized_pl": 4847.18,
-   "trades": 33
+   "buy_and_hold_return": 3.2969,
+   "agent_realized_pl": 4061.38,
+   "trades": 31
   },
   "MSFT": {
-   "buy_and_hold_return": 0.6357,
-   "agent_realized_pl": -6109.33,
+   "buy_and_hold_return": 0.597,
+   "agent_realized_pl": -4801.52,
    "trades": 19
   }
  },
  "contracts": {
-  "n": 190,
-  "brier": 0.2663,
-  "win_rate": 0.426,
-  "mean_confidence": 0.571,
+  "n": 178,
+  "brier": 0.2661,
+  "win_rate": 0.427,
+  "mean_confidence": 0.57,
   "buckets": [
    {
     "lo": 0.5,
     "hi": 0.6,
-    "n": 153,
+    "n": 146,
     "mean_confidence": 0.561,
     "win_rate": 0.438
    },
    {
     "lo": 0.6,
     "hi": 0.7,
-    "n": 37,
+    "n": 32,
     "mean_confidence": 0.611,
-    "win_rate": 0.378
+    "win_rate": 0.375
    }
   ],
   "grades": {
-   "C": 94,
-   "B": 47,
-   "D": 15,
-   "A": 34
+   "C": 93,
+   "B": 41,
+   "A": 35,
+   "D": 9
   },
   "by_source": {
    "rule": {
-    "n": 190,
-    "brier": 0.2663,
-    "win_rate": 0.426
+    "n": 178,
+    "brier": 0.2661,
+    "win_rate": 0.427
    }
   },
   "shadow": 0,
-  "net_return_pct": 62.02
+  "net_return_pct": 88.7
  },
  "limits": {
-  "daily_loss_limit_pct": 0.02,
+  "daily_loss_limit_pct": 0.025,
   "risk_per_trade": 0.01,
   "max_position_pct": 0.2,
   "max_gross_pct": 1.0,
@@ -237,13 +237,13 @@
   },
   {
    "date": "2023-06-22",
-   "agent": 100354.09,
-   "benchmark": 104700.2
+   "agent": 100354.08,
+   "benchmark": 104700.19
   },
   {
    "date": "2023-06-25",
    "agent": 99699.75,
-   "benchmark": 104478.82
+   "benchmark": 104478.83
   },
   {
    "date": "2023-06-28",
@@ -263,7 +263,7 @@
   {
    "date": "2023-07-07",
    "agent": 99526.19,
-   "benchmark": 104986.31
+   "benchmark": 104986.3
   },
   {
    "date": "2023-07-10",
@@ -282,17 +282,17 @@
   },
   {
    "date": "2023-07-19",
-   "agent": 100243.58,
+   "agent": 100243.57,
    "benchmark": 108913.1
   },
   {
    "date": "2023-07-22",
-   "agent": 98678.03,
+   "agent": 98678.02,
    "benchmark": 106449.53
   },
   {
    "date": "2023-07-25",
-   "agent": 98978.19,
+   "agent": 98978.18,
    "benchmark": 107237.8
   },
   {
@@ -302,8 +302,8 @@
   },
   {
    "date": "2023-07-31",
-   "agent": 98974.16,
-   "benchmark": 107439.08
+   "agent": 98974.15,
+   "benchmark": 107439.07
   },
   {
    "date": "2023-08-03",
@@ -328,1979 +328,1979 @@
   {
    "date": "2023-08-15",
    "agent": 97622.23,
-   "benchmark": 102962.9
+   "benchmark": 102962.91
   },
   {
    "date": "2023-08-18",
-   "agent": 95103.13,
-   "benchmark": 98687.47
+   "agent": 95519.37,
+   "benchmark": 98687.48
   },
   {
    "date": "2023-08-21",
-   "agent": 94885.84,
+   "agent": 95450.94,
    "benchmark": 100714.99
   },
   {
    "date": "2023-08-24",
-   "agent": 94788.77,
-   "benchmark": 100518.5
+   "agent": 95351.82,
+   "benchmark": 100518.51
   },
   {
    "date": "2023-08-27",
-   "agent": 95087.1,
-   "benchmark": 100574.06
+   "agent": 95654.98,
+   "benchmark": 100574.05
   },
   {
    "date": "2023-08-30",
-   "agent": 98261.91,
-   "benchmark": 104583.49
+   "agent": 98855.33,
+   "benchmark": 104583.5
   },
   {
    "date": "2023-09-02",
-   "agent": 98054.3,
+   "agent": 98646.81,
    "benchmark": 103144.26
   },
   {
    "date": "2023-09-05",
-   "agent": 98088.69,
+   "agent": 98681.24,
    "benchmark": 103264.01
   },
   {
    "date": "2023-09-08",
-   "agent": 96982.72,
+   "agent": 97571.87,
    "benchmark": 101112.3
   },
   {
    "date": "2023-09-11",
-   "agent": 97211.16,
+   "agent": 97800.31,
    "benchmark": 100389.76
   },
   {
    "date": "2023-09-14",
-   "agent": 98262.72,
-   "benchmark": 101732.55
+   "agent": 98858.46,
+   "benchmark": 101732.54
   },
   {
    "date": "2023-09-17",
-   "agent": 97593.68,
+   "agent": 98186.74,
    "benchmark": 100257.88
   },
   {
    "date": "2023-09-20",
-   "agent": 97085.87,
+   "agent": 97675.62,
    "benchmark": 99259.61
   },
   {
    "date": "2023-09-23",
-   "agent": 96773.68,
-   "benchmark": 97749.47
+   "agent": 97361.9,
+   "benchmark": 97749.46
   },
   {
    "date": "2023-09-26",
-   "agent": 96243.49,
+   "agent": 96831.45,
    "benchmark": 96926.14
   },
   {
    "date": "2023-09-29",
-   "agent": 96450.22,
-   "benchmark": 98783.1
+   "agent": 97039.2,
+   "benchmark": 98783.11
   },
   {
    "date": "2023-10-02",
-   "agent": 96816.74,
-   "benchmark": 100105.32
+   "agent": 97405.71,
+   "benchmark": 100105.31
   },
   {
    "date": "2023-10-05",
-   "agent": 96625.22,
-   "benchmark": 99372.93
+   "agent": 97213.24,
+   "benchmark": 99372.94
   },
   {
    "date": "2023-10-08",
-   "agent": 97327.39,
-   "benchmark": 101157.21
+   "agent": 97920.28,
+   "benchmark": 101157.22
   },
   {
    "date": "2023-10-11",
-   "agent": 97406.96,
-   "benchmark": 101264.58
+   "agent": 98005.3,
+   "benchmark": 101264.59
   },
   {
    "date": "2023-10-14",
-   "agent": 96939.56,
+   "agent": 97535.18,
    "benchmark": 100031.33
   },
   {
    "date": "2023-10-17",
-   "agent": 96412.71,
+   "agent": 97005.26,
    "benchmark": 100757.98
   },
   {
    "date": "2023-10-20",
-   "agent": 95409.53,
+   "agent": 95991.69,
    "benchmark": 99301.14
   },
   {
    "date": "2023-10-23",
-   "agent": 95218.68,
+   "agent": 95799.18,
    "benchmark": 103191.22
   },
   {
    "date": "2023-10-26",
-   "agent": 95218.68,
-   "benchmark": 101903.84
+   "agent": 95799.18,
+   "benchmark": 101903.83
   },
   {
    "date": "2023-10-29",
-   "agent": 95040.81,
+   "agent": 95617.52,
    "benchmark": 102294.58
   },
   {
    "date": "2023-11-01",
-   "agent": 95583.82,
+   "agent": 96172.09,
    "benchmark": 105848.25
   },
   {
    "date": "2023-11-04",
-   "agent": 96264.34,
-   "benchmark": 107990.8
+   "agent": 96866.76,
+   "benchmark": 107990.81
   },
   {
    "date": "2023-11-07",
-   "agent": 96721.87,
+   "agent": 97330.78,
    "benchmark": 109775.88
   },
   {
    "date": "2023-11-10",
-   "agent": 97711.28,
+   "agent": 98330.52,
    "benchmark": 114311.51
   },
   {
    "date": "2023-11-13",
-   "agent": 97732.75,
+   "agent": 98351.41,
    "benchmark": 113460.83
   },
   {
    "date": "2023-11-16",
-   "agent": 98438.58,
+   "agent": 99067.55,
    "benchmark": 114291.74
   },
   {
    "date": "2023-11-19",
-   "agent": 98390.29,
+   "agent": 99018.98,
    "benchmark": 115086.34
   },
   {
    "date": "2023-11-22",
-   "agent": 98430.34,
-   "benchmark": 116097.45
+   "agent": 99061.82,
+   "benchmark": 116097.46
   },
   {
    "date": "2023-11-25",
-   "agent": 98128.01,
-   "benchmark": 115999.96
+   "agent": 98757.08,
+   "benchmark": 115999.95
   },
   {
    "date": "2023-11-28",
-   "agent": 98176.55,
+   "agent": 98806.37,
    "benchmark": 116020.77
   },
   {
    "date": "2023-12-01",
-   "agent": 98860.53,
-   "benchmark": 116277.99
+   "agent": 99494.68,
+   "benchmark": 116278.0
   },
   {
    "date": "2023-12-04",
-   "agent": 101140.71,
+   "agent": 101787.14,
    "benchmark": 118343.08
   },
   {
    "date": "2023-12-07",
-   "agent": 102348.77,
-   "benchmark": 121054.35
+   "agent": 103001.45,
+   "benchmark": 121054.36
   },
   {
    "date": "2023-12-10",
-   "agent": 102527.83,
+   "agent": 103181.66,
    "benchmark": 121984.53
   },
   {
    "date": "2023-12-13",
-   "agent": 101676.14,
+   "agent": 102323.58,
    "benchmark": 121920.58
   },
   {
    "date": "2023-12-16",
-   "agent": 101183.45,
+   "agent": 101827.0,
    "benchmark": 121464.87
   },
   {
    "date": "2023-12-19",
-   "agent": 101041.31,
+   "agent": 101682.24,
    "benchmark": 121751.88
   },
   {
    "date": "2023-12-22",
-   "agent": 102803.04,
+   "agent": 103456.49,
    "benchmark": 123380.97
   },
   {
    "date": "2023-12-25",
-   "agent": 102278.62,
+   "agent": 102928.71,
    "benchmark": 122725.61
   },
   {
    "date": "2023-12-28",
-   "agent": 102503.24,
+   "agent": 103153.78,
    "benchmark": 123292.71
   },
   {
    "date": "2023-12-31",
-   "agent": 101818.89,
+   "agent": 102465.62,
    "benchmark": 122384.4
   },
   {
    "date": "2024-01-03",
-   "agent": 101104.63,
-   "benchmark": 119906.04
+   "agent": 101750.0,
+   "benchmark": 119906.05
   },
   {
    "date": "2024-01-06",
-   "agent": 101807.04,
+   "agent": 102456.92,
    "benchmark": 120867.24
   },
   {
    "date": "2024-01-09",
-   "agent": 103428.23,
+   "agent": 104088.51,
    "benchmark": 125516.01
   },
   {
    "date": "2024-01-12",
-   "agent": 102963.57,
+   "agent": 103620.41,
    "benchmark": 126575.37
   },
   {
    "date": "2024-01-15",
-   "agent": 102166.18,
+   "agent": 102977.81,
    "benchmark": 126279.73
   },
   {
    "date": "2024-01-18",
-   "agent": 102662.66,
+   "agent": 103858.65,
    "benchmark": 126634.22
   },
   {
    "date": "2024-01-21",
-   "agent": 103756.13,
-   "benchmark": 128468.57
+   "agent": 104967.35,
+   "benchmark": 128468.58
   },
   {
    "date": "2024-01-24",
-   "agent": 104025.04,
+   "agent": 104341.06,
    "benchmark": 127179.05
   },
   {
    "date": "2024-01-27",
-   "agent": 104028.34,
+   "agent": 104349.77,
    "benchmark": 128354.99
   },
   {
    "date": "2024-01-30",
-   "agent": 105085.16,
+   "agent": 105563.1,
    "benchmark": 130082.05
   },
   {
    "date": "2024-02-02",
-   "agent": 106447.33,
-   "benchmark": 131293.4
+   "agent": 106918.04,
+   "benchmark": 131293.39
   },
   {
    "date": "2024-02-05",
-   "agent": 107158.66,
+   "agent": 107664.6,
    "benchmark": 131854.76
   },
   {
    "date": "2024-02-08",
-   "agent": 108228.18,
-   "benchmark": 135188.75
+   "agent": 108729.2,
+   "benchmark": 135188.76
   },
   {
    "date": "2024-02-11",
-   "agent": 110863.83,
-   "benchmark": 139026.48
+   "agent": 111410.37,
+   "benchmark": 139026.49
   },
   {
    "date": "2024-02-14",
-   "agent": 112203.11,
-   "benchmark": 142761.53
+   "agent": 112784.63,
+   "benchmark": 142761.54
   },
   {
    "date": "2024-02-17",
-   "agent": 111277.64,
+   "agent": 111838.33,
    "benchmark": 141844.0
   },
   {
    "date": "2024-02-20",
-   "agent": 110213.22,
+   "agent": 110724.67,
    "benchmark": 142616.37
   },
   {
    "date": "2024-02-23",
-   "agent": 113674.29,
+   "agent": 114332.15,
    "benchmark": 145408.47
   },
   {
    "date": "2024-02-26",
-   "agent": 115169.68,
+   "agent": 115839.24,
    "benchmark": 149409.98
   },
   {
    "date": "2024-02-29",
-   "agent": 118357.02,
-   "benchmark": 154831.14
+   "agent": 119039.76,
+   "benchmark": 154831.15
   },
   {
    "date": "2024-03-03",
-   "agent": 120684.14,
-   "benchmark": 158657.92
+   "agent": 121421.21,
+   "benchmark": 158657.93
   },
   {
    "date": "2024-03-06",
-   "agent": 121858.89,
+   "agent": 123926.71,
    "benchmark": 163438.94
   },
   {
    "date": "2024-03-09",
-   "agent": 121965.56,
+   "agent": 124715.82,
    "benchmark": 165517.16
   },
   {
    "date": "2024-03-12",
-   "agent": 124598.91,
+   "agent": 128233.69,
    "benchmark": 170157.1
   },
   {
    "date": "2024-03-15",
-   "agent": 121678.26,
+   "agent": 125480.08,
    "benchmark": 165017.88
   },
   {
    "date": "2024-03-18",
-   "agent": 120994.72,
-   "benchmark": 162815.04
+   "agent": 125188.83,
+   "benchmark": 162815.03
   },
   {
    "date": "2024-03-21",
-   "agent": 121095.48,
+   "agent": 124326.66,
    "benchmark": 163490.16
   },
   {
    "date": "2024-03-24",
-   "agent": 121755.24,
+   "agent": 125207.71,
    "benchmark": 165161.22
   },
   {
    "date": "2024-03-27",
-   "agent": 121046.35,
+   "agent": 123497.86,
    "benchmark": 165122.2
   },
   {
    "date": "2024-03-30",
-   "agent": 120746.72,
+   "agent": 123473.96,
    "benchmark": 165118.66
   },
   {
    "date": "2024-04-02",
-   "agent": 119838.43,
+   "agent": 122254.39,
    "benchmark": 160163.75
   },
   {
    "date": "2024-04-05",
-   "agent": 119439.49,
+   "agent": 121784.96,
    "benchmark": 161514.95
   },
   {
    "date": "2024-04-08",
-   "agent": 119104.42,
+   "agent": 121490.42,
    "benchmark": 166279.63
   },
   {
    "date": "2024-04-11",
-   "agent": 121026.6,
-   "benchmark": 165890.04
+   "agent": 122527.76,
+   "benchmark": 165890.03
   },
   {
    "date": "2024-04-14",
-   "agent": 120313.19,
+   "agent": 120335.62,
    "benchmark": 159140.79
   },
   {
    "date": "2024-04-17",
-   "agent": 118557.03,
-   "benchmark": 151885.47
+   "agent": 117696.66,
+   "benchmark": 151885.48
   },
   {
    "date": "2024-04-20",
-   "agent": 118094.76,
+   "agent": 113779.89,
    "benchmark": 151222.37
   },
   {
    "date": "2024-04-23",
-   "agent": 118419.68,
+   "agent": 114862.28,
    "benchmark": 155952.94
   },
   {
    "date": "2024-04-26",
-   "agent": 118997.36,
-   "benchmark": 156059.72
+   "agent": 115553.92,
+   "benchmark": 156059.73
   },
   {
    "date": "2024-04-29",
-   "agent": 119000.62,
+   "agent": 115325.52,
    "benchmark": 157097.75
   },
   {
    "date": "2024-05-02",
-   "agent": 118589.8,
+   "agent": 114862.41,
    "benchmark": 151329.95
   },
   {
    "date": "2024-05-05",
-   "agent": 118589.8,
-   "benchmark": 158031.22
+   "agent": 114862.41,
+   "benchmark": 158031.23
   },
   {
    "date": "2024-05-08",
-   "agent": 118589.8,
-   "benchmark": 156179.46
+   "agent": 114862.41,
+   "benchmark": 156179.47
   },
   {
    "date": "2024-05-11",
-   "agent": 118523.14,
-   "benchmark": 155690.96
+   "agent": 114797.19,
+   "benchmark": 155690.97
   },
   {
    "date": "2024-05-14",
-   "agent": 118633.06,
+   "agent": 114904.71,
    "benchmark": 157030.33
   },
   {
    "date": "2024-05-17",
-   "agent": 119074.09,
-   "benchmark": 163017.44
+   "agent": 115336.87,
+   "benchmark": 163017.45
   },
   {
    "date": "2024-05-20",
-   "agent": 120497.73,
-   "benchmark": 171379.86
+   "agent": 116717.1,
+   "benchmark": 171379.87
   },
   {
    "date": "2024-05-23",
-   "agent": 119586.39,
+   "agent": 115831.42,
    "benchmark": 173070.86
   },
   {
    "date": "2024-05-26",
-   "agent": 120269.71,
+   "agent": 116496.94,
    "benchmark": 175391.84
   },
   {
    "date": "2024-05-29",
-   "agent": 119784.13,
+   "agent": 116024.38,
    "benchmark": 177080.25
   },
   {
    "date": "2024-06-01",
-   "agent": 118657.5,
-   "benchmark": 175117.72
+   "agent": 114930.72,
+   "benchmark": 175117.71
   },
   {
    "date": "2024-06-04",
-   "agent": 119463.42,
+   "agent": 115713.74,
    "benchmark": 179442.66
   },
   {
    "date": "2024-06-07",
-   "agent": 119137.03,
-   "benchmark": 180278.57
+   "agent": 115403.15,
+   "benchmark": 180278.58
   },
   {
    "date": "2024-06-10",
-   "agent": 119467.35,
+   "agent": 115723.67,
    "benchmark": 180595.0
   },
   {
    "date": "2024-06-13",
-   "agent": 120862.75,
-   "benchmark": 183122.95
+   "agent": 117081.48,
+   "benchmark": 183122.94
   },
   {
    "date": "2024-06-16",
-   "agent": 121300.46,
+   "agent": 117507.54,
    "benchmark": 185106.03
   },
   {
    "date": "2024-06-19",
-   "agent": 122103.25,
-   "benchmark": 185697.99
+   "agent": 118286.94,
+   "benchmark": 185698.0
   },
   {
    "date": "2024-06-22",
-   "agent": 120235.14,
+   "agent": 116472.93,
    "benchmark": 180981.64
   },
   {
    "date": "2024-06-25",
-   "agent": 118676.47,
+   "agent": 114960.66,
    "benchmark": 178828.82
   },
   {
    "date": "2024-06-28",
-   "agent": 118031.14,
+   "agent": 114337.02,
    "benchmark": 176864.72
   },
   {
    "date": "2024-07-01",
-   "agent": 119058.87,
-   "benchmark": 180123.1
+   "agent": 115330.54,
+   "benchmark": 180123.11
   },
   {
    "date": "2024-07-04",
-   "agent": 118807.17,
-   "benchmark": 176217.85
+   "agent": 115087.97,
+   "benchmark": 176217.86
   },
   {
    "date": "2024-07-07",
-   "agent": 119571.62,
-   "benchmark": 174691.0
+   "agent": 115827.81,
+   "benchmark": 174691.02
   },
   {
    "date": "2024-07-10",
-   "agent": 120880.25,
-   "benchmark": 181273.22
+   "agent": 117096.7,
+   "benchmark": 181273.23
   },
   {
    "date": "2024-07-13",
-   "agent": 120063.29,
+   "agent": 116304.98,
    "benchmark": 179629.78
   },
   {
    "date": "2024-07-16",
-   "agent": 120442.62,
-   "benchmark": 184431.14
+   "agent": 116672.12,
+   "benchmark": 184431.15
   },
   {
    "date": "2024-07-19",
-   "agent": 118925.5,
+   "agent": 115201.52,
    "benchmark": 180171.77
   },
   {
    "date": "2024-07-22",
-   "agent": 119304.5,
-   "benchmark": 182764.66
+   "agent": 115566.77,
+   "benchmark": 182764.67
   },
   {
    "date": "2024-07-25",
-   "agent": 118749.34,
+   "agent": 115029.58,
    "benchmark": 172602.47
   },
   {
    "date": "2024-07-28",
-   "agent": 119466.34,
+   "agent": 115723.61,
    "benchmark": 175757.33
   },
   {
    "date": "2024-07-31",
-   "agent": 117463.24,
+   "agent": 113790.11,
    "benchmark": 175360.44
   },
   {
    "date": "2024-08-03",
-   "agent": 115341.75,
-   "benchmark": 165019.22
+   "agent": 111734.99,
+   "benchmark": 165019.23
   },
   {
    "date": "2024-08-06",
-   "agent": 115327.06,
-   "benchmark": 155658.31
+   "agent": 111720.67,
+   "benchmark": 155658.32
   },
   {
    "date": "2024-08-09",
-   "agent": 115569.76,
+   "agent": 111954.7,
    "benchmark": 161434.93
   },
   {
    "date": "2024-08-12",
-   "agent": 115698.05,
+   "agent": 112078.41,
    "benchmark": 163309.59
   },
   {
    "date": "2024-08-15",
-   "agent": 116300.97,
-   "benchmark": 168655.75
+   "agent": 112658.74,
+   "benchmark": 168655.76
   },
   {
    "date": "2024-08-18",
-   "agent": 116291.91,
-   "benchmark": 170178.91
+   "agent": 112649.58,
+   "benchmark": 170178.92
   },
   {
    "date": "2024-08-21",
-   "agent": 117251.35,
-   "benchmark": 173954.35
+   "agent": 113575.56,
+   "benchmark": 173954.36
   },
   {
    "date": "2024-08-24",
-   "agent": 117591.37,
-   "benchmark": 176715.15
+   "agent": 113906.64,
+   "benchmark": 176715.16
   },
   {
    "date": "2024-08-27",
-   "agent": 116363.6,
-   "benchmark": 171032.35
+   "agent": 112718.53,
+   "benchmark": 171032.36
   },
   {
    "date": "2024-08-30",
-   "agent": 115867.62,
-   "benchmark": 168530.37
+   "agent": 112243.18,
+   "benchmark": 168530.38
   },
   {
    "date": "2024-09-02",
-   "agent": 115830.82,
-   "benchmark": 168628.09
+   "agent": 112207.53,
+   "benchmark": 168628.1
   },
   {
    "date": "2024-09-05",
-   "agent": 113694.19,
+   "agent": 110143.88,
    "benchmark": 159395.74
   },
   {
    "date": "2024-09-08",
-   "agent": 113325.37,
-   "benchmark": 155355.62
+   "agent": 109788.24,
+   "benchmark": 155355.63
   },
   {
    "date": "2024-09-11",
-   "agent": 113994.09,
+   "agent": 110432.82,
    "benchmark": 164312.21
   },
   {
    "date": "2024-09-14",
-   "agent": 114402.89,
-   "benchmark": 168025.17
+   "agent": 110826.75,
+   "benchmark": 168025.18
   },
   {
    "date": "2024-09-17",
-   "agent": 114618.23,
+   "agent": 111034.6,
    "benchmark": 166048.8
   },
   {
    "date": "2024-09-20",
-   "agent": 116686.06,
-   "benchmark": 171069.01
+   "agent": 113041.7,
+   "benchmark": 171069.02
   },
   {
    "date": "2024-09-23",
-   "agent": 116637.84,
-   "benchmark": 171840.08
+   "agent": 112995.59,
+   "benchmark": 171840.09
   },
   {
    "date": "2024-09-26",
-   "agent": 117779.23,
-   "benchmark": 175767.13
+   "agent": 114098.69,
+   "benchmark": 175767.14
   },
   {
    "date": "2024-09-29",
-   "agent": 117441.53,
-   "benchmark": 175064.3
+   "agent": 113773.5,
+   "benchmark": 175064.31
   },
   {
    "date": "2024-10-02",
-   "agent": 115565.82,
-   "benchmark": 168175.75
+   "agent": 111960.28,
+   "benchmark": 168175.76
   },
   {
    "date": "2024-10-05",
-   "agent": 116617.18,
-   "benchmark": 171813.82
+   "agent": 112971.38,
+   "benchmark": 171813.83
   },
   {
    "date": "2024-10-08",
-   "agent": 117434.45,
-   "benchmark": 174758.37
+   "agent": 113760.51,
+   "benchmark": 174758.38
   },
   {
    "date": "2024-10-11",
-   "agent": 118061.97,
-   "benchmark": 176153.41
+   "agent": 114361.74,
+   "benchmark": 176153.42
   },
   {
    "date": "2024-10-14",
-   "agent": 118746.8,
-   "benchmark": 181596.31
+   "agent": 115019.33,
+   "benchmark": 181596.33
   },
   {
    "date": "2024-10-17",
-   "agent": 118593.89,
+   "agent": 114875.78,
    "benchmark": 181391.28
   },
   {
    "date": "2024-10-20",
-   "agent": 119390.31,
-   "benchmark": 184302.54
+   "agent": 115643.95,
+   "benchmark": 184302.55
   },
   {
    "date": "2024-10-23",
-   "agent": 118238.54,
-   "benchmark": 180962.94
+   "agent": 114535.45,
+   "benchmark": 180962.95
   },
   {
    "date": "2024-10-26",
-   "agent": 118955.71,
-   "benchmark": 182247.08
+   "agent": 115225.65,
+   "benchmark": 182247.09
   },
   {
    "date": "2024-10-29",
-   "agent": 120195.06,
-   "benchmark": 187216.36
+   "agent": 116421.15,
+   "benchmark": 187216.37
   },
   {
    "date": "2024-11-01",
-   "agent": 116796.15,
+   "agent": 112996.0,
    "benchmark": 179719.05
   },
   {
    "date": "2024-11-04",
-   "agent": 116796.15,
-   "benchmark": 177830.5
+   "agent": 112719.69,
+   "benchmark": 177830.51
   },
   {
    "date": "2024-11-07",
-   "agent": 117656.55,
+   "agent": 113551.96,
    "benchmark": 193972.68
   },
   {
    "date": "2024-11-10",
-   "agent": 117593.1,
-   "benchmark": 198449.25
+   "agent": 113491.6,
+   "benchmark": 198449.26
   },
   {
    "date": "2024-11-13",
-   "agent": 117102.04,
-   "benchmark": 203420.04
+   "agent": 113016.13,
+   "benchmark": 203420.05
   },
   {
    "date": "2024-11-16",
-   "agent": 115384.7,
-   "benchmark": 199969.79
+   "agent": 111343.09,
+   "benchmark": 199969.8
   },
   {
    "date": "2024-11-19",
-   "agent": 115729.07,
-   "benchmark": 203329.83
+   "agent": 111679.68,
+   "benchmark": 203329.84
   },
   {
    "date": "2024-11-22",
-   "agent": 115127.84,
+   "agent": 111101.16,
    "benchmark": 207436.8
   },
   {
    "date": "2024-11-25",
-   "agent": 114549.87,
+   "agent": 110543.34,
    "benchmark": 203206.87
   },
   {
    "date": "2024-11-28",
-   "agent": 114541.95,
-   "benchmark": 206076.92
+   "agent": 110535.43,
+   "benchmark": 206076.94
   },
   {
    "date": "2024-12-01",
-   "agent": 114889.59,
-   "benchmark": 209576.01
+   "agent": 110875.04,
+   "benchmark": 209576.0
   },
   {
    "date": "2024-12-04",
-   "agent": 116382.07,
-   "benchmark": 215623.21
+   "agent": 112324.53,
+   "benchmark": 215623.23
   },
   {
    "date": "2024-12-07",
-   "agent": 116239.45,
-   "benchmark": 217033.46
+   "agent": 112189.3,
+   "benchmark": 217033.47
   },
   {
    "date": "2024-12-10",
-   "agent": 114967.21,
+   "agent": 110957.18,
    "benchmark": 209605.0
   },
   {
    "date": "2024-12-13",
-   "agent": 116137.09,
-   "benchmark": 214890.99
+   "agent": 112092.87,
+   "benchmark": 214890.98
   },
   {
    "date": "2024-12-16",
-   "agent": 116552.38,
-   "benchmark": 218057.58
+   "agent": 112499.61,
+   "benchmark": 218057.57
   },
   {
    "date": "2024-12-19",
-   "agent": 112589.83,
-   "benchmark": 205840.98
+   "agent": 108659.22,
+   "benchmark": 205840.99
   },
   {
    "date": "2024-12-22",
-   "agent": 112530.06,
+   "agent": 108596.03,
    "benchmark": 205537.05
   },
   {
    "date": "2024-12-25",
-   "agent": 113485.66,
+   "agent": 109511.91,
    "benchmark": 212776.03
   },
   {
    "date": "2024-12-28",
-   "agent": 112994.32,
-   "benchmark": 207504.77
+   "agent": 109041.66,
+   "benchmark": 207504.78
   },
   {
    "date": "2024-12-31",
-   "agent": 112218.04,
+   "agent": 108298.81,
    "benchmark": 203517.77
   },
   {
    "date": "2025-01-03",
-   "agent": 112825.45,
-   "benchmark": 211895.99
+   "agent": 108881.07,
+   "benchmark": 211896.0
   },
   {
    "date": "2025-01-06",
-   "agent": 113191.14,
+   "agent": 109231.19,
    "benchmark": 217174.01
   },
   {
    "date": "2025-01-09",
-   "agent": 112794.62,
-   "benchmark": 203896.47
+   "agent": 108852.68,
+   "benchmark": 203896.48
   },
   {
    "date": "2025-01-12",
-   "agent": 112157.09,
-   "benchmark": 202595.25
+   "agent": 108243.87,
+   "benchmark": 202595.26
   },
   {
    "date": "2025-01-15",
-   "agent": 113282.96,
-   "benchmark": 208730.81
+   "agent": 109324.85,
+   "benchmark": 208730.82
   },
   {
    "date": "2025-01-18",
-   "agent": 112681.01,
+   "agent": 108741.04,
    "benchmark": 210064.81
   },
   {
    "date": "2025-01-21",
-   "agent": 112134.57,
+   "agent": 108211.61,
    "benchmark": 211993.17
   },
   {
    "date": "2025-01-24",
-   "agent": 112137.1,
+   "agent": 108214.08,
    "benchmark": 212779.56
   },
   {
    "date": "2025-01-27",
-   "agent": 111339.96,
+   "agent": 107435.92,
    "benchmark": 201013.13
   },
   {
    "date": "2025-01-30",
-   "agent": 111339.96,
+   "agent": 107435.92,
    "benchmark": 205511.15
   },
   {
    "date": "2025-02-02",
-   "agent": 111125.19,
-   "benchmark": 196657.65
+   "agent": 107226.26,
+   "benchmark": 196657.66
   },
   {
    "date": "2025-02-05",
-   "agent": 111315.1,
-   "benchmark": 196967.75
+   "agent": 107411.65,
+   "benchmark": 196967.76
   },
   {
    "date": "2025-02-08",
-   "agent": 111151.43,
+   "agent": 107251.88,
    "benchmark": 196557.78
   },
   {
    "date": "2025-02-11",
-   "agent": 111362.58,
-   "benchmark": 197780.15
+   "agent": 107458.0,
+   "benchmark": 197780.16
   },
   {
    "date": "2025-02-14",
-   "agent": 111785.71,
-   "benchmark": 203234.66
+   "agent": 107871.05,
+   "benchmark": 203234.67
   },
   {
    "date": "2025-02-17",
-   "agent": 111785.71,
-   "benchmark": 202418.59
+   "agent": 107871.05,
+   "benchmark": 202418.6
   },
   {
    "date": "2025-02-20",
-   "agent": 111747.39,
+   "agent": 107833.64,
    "benchmark": 204697.63
   },
   {
    "date": "2025-02-23",
-   "agent": 111283.04,
+   "agent": 107380.35,
    "benchmark": 201089.63
   },
   {
    "date": "2025-02-26",
-   "agent": 110902.54,
-   "benchmark": 187979.85
+   "agent": 107011.05,
+   "benchmark": 187979.87
   },
   {
    "date": "2025-03-01",
-   "agent": 111368.94,
-   "benchmark": 185480.99
+   "agent": 107461.32,
+   "benchmark": 185481.0
   },
   {
    "date": "2025-03-04",
-   "agent": 110579.25,
+   "agent": 106708.07,
    "benchmark": 180732.83
   },
   {
    "date": "2025-03-07",
-   "agent": 110941.55,
+   "agent": 107059.26,
    "benchmark": 179333.31
   },
   {
    "date": "2025-03-10",
-   "agent": 108369.84,
+   "agent": 104572.26,
    "benchmark": 167783.22
   },
   {
    "date": "2025-03-13",
-   "agent": 106971.54,
-   "benchmark": 170254.17
+   "agent": 103212.26,
+   "benchmark": 170254.18
   },
   {
    "date": "2025-03-16",
-   "agent": 107343.38,
-   "benchmark": 174966.55
+   "agent": 103571.06,
+   "benchmark": 174966.56
   },
   {
    "date": "2025-03-19",
-   "agent": 107979.51,
+   "agent": 104185.92,
    "benchmark": 177574.84
   },
   {
    "date": "2025-03-22",
-   "agent": 108029.07,
-   "benchmark": 175670.18
+   "agent": 104232.7,
+   "benchmark": 175670.19
   },
   {
    "date": "2025-03-25",
-   "agent": 109476.04,
+   "agent": 105631.34,
    "benchmark": 180955.27
   },
   {
    "date": "2025-03-28",
-   "agent": 107761.75,
+   "agent": 103978.3,
    "benchmark": 171170.82
   },
   {
    "date": "2025-03-31",
-   "agent": 107281.91,
+   "agent": 103514.28,
    "benchmark": 169444.62
   },
   {
    "date": "2025-04-03",
-   "agent": 105707.05,
-   "benchmark": 164315.19
+   "agent": 101993.19,
+   "benchmark": 164315.2
   },
   {
    "date": "2025-04-06",
-   "agent": 104219.21,
-   "benchmark": 153138.49
+   "agent": 100561.6,
+   "benchmark": 153138.5
   },
   {
    "date": "2025-04-09",
-   "agent": 101729.25,
+   "agent": 104123.59,
    "benchmark": 168600.51
   },
   {
    "date": "2025-04-12",
-   "agent": 102458.82,
+   "agent": 103508.0,
    "benchmark": 167611.03
   },
   {
    "date": "2025-04-15",
-   "agent": 102542.64,
-   "benchmark": 167172.89
+   "agent": 103688.21,
+   "benchmark": 167172.9
   },
   {
    "date": "2025-04-18",
-   "agent": 101865.44,
+   "agent": 102844.6,
    "benchmark": 161761.55
   },
   {
    "date": "2025-04-21",
-   "agent": 101287.92,
+   "agent": 102232.48,
    "benchmark": 160246.94
   },
   {
    "date": "2025-04-24",
-   "agent": 102124.63,
-   "benchmark": 173549.88
+   "agent": 104396.02,
+   "benchmark": 173549.89
   },
   {
    "date": "2025-04-27",
-   "agent": 102091.46,
-   "benchmark": 175839.71
+   "agent": 104547.01,
+   "benchmark": 175839.72
   },
   {
    "date": "2025-04-30",
-   "agent": 102313.01,
-   "benchmark": 176016.18
+   "agent": 104606.25,
+   "benchmark": 176016.19
   },
   {
    "date": "2025-05-03",
-   "agent": 102304.74,
-   "benchmark": 181332.49
+   "agent": 104527.48,
+   "benchmark": 181332.5
   },
   {
    "date": "2025-05-06",
-   "agent": 101877.87,
+   "agent": 104021.65,
    "benchmark": 180159.77
   },
   {
    "date": "2025-05-09",
-   "agent": 103070.09,
+   "agent": 105242.18,
    "benchmark": 189684.37
   },
   {
    "date": "2025-05-12",
-   "agent": 104302.1,
-   "benchmark": 195909.76
+   "agent": 106630.43,
+   "benchmark": 195909.77
   },
   {
    "date": "2025-05-15",
-   "agent": 104844.85,
+   "agent": 107182.33,
    "benchmark": 201920.57
   },
   {
    "date": "2025-05-18",
-   "agent": 105399.31,
+   "agent": 107749.62,
    "benchmark": 203458.92
   },
   {
    "date": "2025-05-21",
-   "agent": 105283.93,
-   "benchmark": 202916.41
+   "agent": 107629.94,
+   "benchmark": 202916.42
   },
   {
    "date": "2025-05-24",
-   "agent": 104811.14,
-   "benchmark": 200602.46
+   "agent": 107145.77,
+   "benchmark": 200602.48
   },
   {
    "date": "2025-05-27",
-   "agent": 105799.59,
+   "agent": 108158.72,
    "benchmark": 205547.37
   },
   {
    "date": "2025-05-30",
-   "agent": 104394.64,
-   "benchmark": 201464.01
+   "agent": 106722.02,
+   "benchmark": 201464.0
   },
   {
    "date": "2025-06-02",
-   "agent": 105320.96,
+   "agent": 107669.75,
    "benchmark": 204331.31
   },
   {
    "date": "2025-06-05",
-   "agent": 104247.45,
-   "benchmark": 201538.07
+   "agent": 106572.47,
+   "benchmark": 201538.08
   },
   {
    "date": "2025-06-08",
-   "agent": 105590.01,
+   "agent": 107945.99,
    "benchmark": 206027.03
   },
   {
    "date": "2025-06-11",
-   "agent": 107190.45,
-   "benchmark": 210036.56
+   "agent": 109582.58,
+   "benchmark": 210036.57
   },
   {
    "date": "2025-06-14",
-   "agent": 105546.42,
-   "benchmark": 205547.59
+   "agent": 107900.69,
+   "benchmark": 205547.6
   },
   {
    "date": "2025-06-17",
-   "agent": 105600.04,
-   "benchmark": 205802.38
+   "agent": 107955.82,
+   "benchmark": 205802.39
   },
   {
    "date": "2025-06-20",
-   "agent": 104766.29,
-   "benchmark": 204400.89
+   "agent": 107102.98,
+   "benchmark": 204400.9
   },
   {
    "date": "2025-06-23",
-   "agent": 105335.8,
+   "agent": 107686.44,
    "benchmark": 206708.08
   },
   {
    "date": "2025-06-26",
-   "agent": 107017.58,
-   "benchmark": 212637.71
+   "agent": 109408.17,
+   "benchmark": 212637.72
   },
   {
    "date": "2025-06-29",
-   "agent": 107535.07,
+   "agent": 109937.37,
    "benchmark": 215189.28
   },
   {
    "date": "2025-07-02",
-   "agent": 107528.35,
+   "agent": 109931.21,
    "benchmark": 216832.8
   },
   {
    "date": "2025-07-05",
-   "agent": 107907.54,
-   "benchmark": 217575.51
+   "agent": 110319.95,
+   "benchmark": 217575.52
   },
   {
    "date": "2025-07-08",
-   "agent": 107838.28,
+   "agent": 110248.15,
    "benchmark": 218310.47
   },
   {
    "date": "2025-07-11",
-   "agent": 109500.77,
+   "agent": 111947.75,
    "benchmark": 228125.23
   },
   {
    "date": "2025-07-14",
-   "agent": 110212.94,
-   "benchmark": 229477.71
+   "agent": 112676.41,
+   "benchmark": 229477.72
   },
   {
    "date": "2025-07-17",
-   "agent": 113161.99,
-   "benchmark": 236906.56
+   "agent": 115691.79,
+   "benchmark": 236906.55
   },
   {
    "date": "2025-07-20",
-   "agent": 113940.87,
-   "benchmark": 237909.5
+   "agent": 116488.01,
+   "benchmark": 237909.51
   },
   {
    "date": "2025-07-23",
-   "agent": 113588.11,
-   "benchmark": 237454.56
+   "agent": 116128.15,
+   "benchmark": 237454.57
   },
   {
    "date": "2025-07-26",
-   "agent": 114262.3,
+   "agent": 116817.73,
    "benchmark": 239393.28
   },
   {
    "date": "2025-07-29",
-   "agent": 114704.16,
-   "benchmark": 240225.97
+   "agent": 117269.49,
+   "benchmark": 240225.98
   },
   {
    "date": "2025-08-01",
-   "agent": 111851.71,
-   "benchmark": 233370.56
+   "agent": 114350.27,
+   "benchmark": 233370.57
   },
   {
    "date": "2025-08-04",
-   "agent": 113978.54,
+   "agent": 116525.09,
    "benchmark": 239721.76
   },
   {
    "date": "2025-08-07",
-   "agent": 117065.42,
+   "agent": 119688.32,
    "benchmark": 243843.32
   },
   {
    "date": "2025-08-10",
-   "agent": 118668.37,
-   "benchmark": 249469.12
+   "agent": 121326.9,
+   "benchmark": 249469.13
   },
   {
    "date": "2025-08-13",
-   "agent": 120618.52,
-   "benchmark": 256193.41
+   "agent": 123320.38,
+   "benchmark": 256193.42
   },
   {
    "date": "2025-08-16",
-   "agent": 118889.34,
-   "benchmark": 249535.25
+   "agent": 121552.18,
+   "benchmark": 249535.27
   },
   {
    "date": "2025-08-19",
-   "agent": 116431.03,
-   "benchmark": 241416.84
+   "agent": 119038.12,
+   "benchmark": 241416.85
   },
   {
    "date": "2025-08-22",
-   "agent": 120049.42,
-   "benchmark": 250687.87
+   "agent": 122737.82,
+   "benchmark": 250687.88
   },
   {
    "date": "2025-08-25",
-   "agent": 118107.05,
-   "benchmark": 243498.54
+   "agent": 120751.38,
+   "benchmark": 243498.56
   },
   {
    "date": "2025-08-28",
-   "agent": 119624.06,
-   "benchmark": 247206.82
+   "agent": 122303.93,
+   "benchmark": 247206.83
   },
   {
    "date": "2025-08-31",
-   "agent": 117337.06,
-   "benchmark": 241224.45
+   "agent": 119965.17,
+   "benchmark": 241224.46
   },
   {
    "date": "2025-09-03",
-   "agent": 117852.57,
-   "benchmark": 242784.77
+   "agent": 120492.33,
+   "benchmark": 242784.78
   },
   {
    "date": "2025-09-06",
-   "agent": 116837.09,
+   "agent": 119455.6,
    "benchmark": 239260.44
   },
   {
    "date": "2025-09-09",
-   "agent": 117915.55,
-   "benchmark": 241578.34
+   "agent": 120558.7,
+   "benchmark": 241578.35
   },
   {
    "date": "2025-09-12",
-   "agent": 120868.35,
-   "benchmark": 250859.57
+   "agent": 123578.5,
+   "benchmark": 250859.58
   },
   {
    "date": "2025-09-15",
-   "agent": 120368.15,
-   "benchmark": 249688.12
+   "agent": 123068.14,
+   "benchmark": 249688.13
   },
   {
    "date": "2025-09-18",
-   "agent": 120472.57,
-   "benchmark": 250596.29
+   "agent": 123175.83,
+   "benchmark": 250596.3
   },
   {
    "date": "2025-09-21",
-   "agent": 120149.02,
-   "benchmark": 249882.23
+   "agent": 122845.95,
+   "benchmark": 249882.24
   },
   {
    "date": "2025-09-24",
-   "agent": 118643.78,
-   "benchmark": 246458.52
+   "agent": 121306.41,
+   "benchmark": 246458.53
   },
   {
    "date": "2025-09-27",
-   "agent": 117432.92,
-   "benchmark": 244090.6
+   "agent": 120068.61,
+   "benchmark": 244090.61
   },
   {
    "date": "2025-09-30",
-   "agent": 118711.55,
-   "benchmark": 251010.74
+   "agent": 121377.0,
+   "benchmark": 251010.76
   },
   {
    "date": "2025-10-03",
-   "agent": 118937.14,
-   "benchmark": 259384.72
+   "agent": 121608.39,
+   "benchmark": 259384.73
   },
   {
    "date": "2025-10-06",
-   "agent": 119050.48,
-   "benchmark": 262095.35
+   "agent": 121725.22,
+   "benchmark": 262095.36
   },
   {
    "date": "2025-10-09",
-   "agent": 119712.63,
-   "benchmark": 259875.44
+   "agent": 122398.64,
+   "benchmark": 259875.45
   },
   {
    "date": "2025-10-12",
-   "agent": 116596.39,
-   "benchmark": 248664.24
+   "agent": 119213.35,
+   "benchmark": 248664.25
   },
   {
    "date": "2025-10-15",
-   "agent": 117379.58,
-   "benchmark": 244978.91
+   "agent": 120014.64,
+   "benchmark": 244978.92
   },
   {
    "date": "2025-10-18",
-   "agent": 117724.61,
-   "benchmark": 243667.48
+   "agent": 120366.58,
+   "benchmark": 243667.49
   },
   {
    "date": "2025-10-21",
-   "agent": 117761.57,
-   "benchmark": 245076.65
+   "agent": 120404.73,
+   "benchmark": 245076.67
   },
   {
    "date": "2025-10-24",
-   "agent": 118546.31,
-   "benchmark": 249430.52
+   "agent": 121205.64,
+   "benchmark": 249430.53
   },
   {
    "date": "2025-10-27",
-   "agent": 120140.73,
-   "benchmark": 256002.66
+   "agent": 122835.01,
+   "benchmark": 256002.68
   },
   {
    "date": "2025-10-30",
-   "agent": 120982.96,
-   "benchmark": 253866.53
+   "agent": 123692.06,
+   "benchmark": 253866.55
   },
   {
    "date": "2025-11-02",
-   "agent": 120679.43,
+   "agent": 123382.99,
    "benchmark": 255659.24
   },
   {
    "date": "2025-11-05",
-   "agent": 119072.52,
-   "benchmark": 244547.96
+   "agent": 121740.35,
+   "benchmark": 244547.97
   },
   {
    "date": "2025-11-08",
-   "agent": 116165.34,
+   "agent": 118763.35,
    "benchmark": 239651.7
   },
   {
    "date": "2025-11-11",
-   "agent": 117494.47,
-   "benchmark": 243864.12
+   "agent": 120121.17,
+   "benchmark": 243864.13
   },
   {
    "date": "2025-11-14",
-   "agent": 114319.91,
-   "benchmark": 234482.95
+   "agent": 116891.15,
+   "benchmark": 234482.96
   },
   {
    "date": "2025-11-17",
-   "agent": 113519.47,
-   "benchmark": 230391.44
+   "agent": 116073.71,
+   "benchmark": 230391.45
   },
   {
    "date": "2025-11-20",
-   "agent": 111924.38,
-   "benchmark": 221238.36
+   "agent": 114443.64,
+   "benchmark": 221238.37
   },
   {
    "date": "2025-11-23",
-   "agent": 111567.58,
+   "agent": 114079.72,
    "benchmark": 221007.08
   },
   {
    "date": "2025-11-26",
-   "agent": 112374.51,
+   "agent": 114904.68,
    "benchmark": 228117.24
   },
   {
    "date": "2025-11-29",
-   "agent": 112535.4,
-   "benchmark": 227578.47
+   "agent": 115069.15,
+   "benchmark": 227578.48
   },
   {
    "date": "2025-12-02",
-   "agent": 113260.31,
-   "benchmark": 229997.13
+   "agent": 115810.18,
+   "benchmark": 229997.14
   },
   {
    "date": "2025-12-05",
-   "agent": 112558.22,
+   "agent": 115092.48,
    "benchmark": 228864.9
   },
   {
    "date": "2025-12-08",
-   "agent": 112231.81,
-   "benchmark": 231631.82
+   "agent": 114764.3,
+   "benchmark": 231631.83
   },
   {
    "date": "2025-12-11",
-   "agent": 112387.48,
-   "benchmark": 231893.36
+   "agent": 114920.26,
+   "benchmark": 231893.38
   },
   {
    "date": "2025-12-14",
-   "agent": 112168.01,
-   "benchmark": 225070.79
+   "agent": 114701.27,
+   "benchmark": 225070.8
   },
   {
    "date": "2025-12-17",
-   "agent": 111251.75,
-   "benchmark": 219155.98
+   "agent": 113772.17,
+   "benchmark": 219155.99
   },
   {
    "date": "2025-12-20",
-   "agent": 112584.33,
+   "agent": 115127.55,
    "benchmark": 226686.05
   },
   {
    "date": "2025-12-23",
-   "agent": 113167.77,
-   "benchmark": 229342.44
+   "agent": 115719.69,
+   "benchmark": 229342.46
   },
   {
    "date": "2025-12-26",
-   "agent": 113403.69,
-   "benchmark": 229701.63
+   "agent": 115959.47,
+   "benchmark": 229701.64
   },
   {
    "date": "2025-12-29",
-   "agent": 113244.1,
-   "benchmark": 228676.53
+   "agent": 115797.58,
+   "benchmark": 228676.54
   },
   {
    "date": "2026-01-01",
-   "agent": 112637.49,
+   "agent": 115180.64,
    "benchmark": 228731.88
   },
   {
    "date": "2026-01-04",
-   "agent": 112558.25,
-   "benchmark": 231644.12
+   "agent": 115098.52,
+   "benchmark": 231644.13
   },
   {
    "date": "2026-01-07",
-   "agent": 112445.47,
-   "benchmark": 232160.52
+   "agent": 114980.5,
+   "benchmark": 232160.53
   },
   {
    "date": "2026-01-10",
-   "agent": 112027.47,
-   "benchmark": 229476.98
+   "agent": 114550.2,
+   "benchmark": 229476.99
   },
   {
    "date": "2026-01-13",
-   "agent": 114269.85,
-   "benchmark": 234228.21
+   "agent": 116843.27,
+   "benchmark": 234228.22
   },
   {
    "date": "2026-01-16",
-   "agent": 113932.39,
-   "benchmark": 233091.22
+   "agent": 116498.95,
+   "benchmark": 233091.23
   },
   {
    "date": "2026-01-19",
-   "agent": 112740.35,
-   "benchmark": 230559.13
+   "agent": 115280.04,
+   "benchmark": 230559.15
   },
   {
    "date": "2026-01-22",
-   "agent": 109428.11,
-   "benchmark": 225367.21
+   "agent": 111901.12,
+   "benchmark": 225367.22
   },
   {
    "date": "2026-01-25",
-   "agent": 109138.53,
-   "benchmark": 224369.25
+   "agent": 111604.62,
+   "benchmark": 224369.26
   },
   {
    "date": "2026-01-28",
-   "agent": 110537.08,
-   "benchmark": 230692.47
+   "agent": 113032.66,
+   "benchmark": 230692.48
   },
   {
    "date": "2026-01-31",
-   "agent": 107427.64,
-   "benchmark": 217554.75
+   "agent": 109853.1,
+   "benchmark": 217554.76
   },
   {
    "date": "2026-02-03",
-   "agent": 107382.26,
-   "benchmark": 210022.03
+   "agent": 109807.33,
+   "benchmark": 210022.04
   },
   {
    "date": "2026-02-06",
-   "agent": 107711.63,
-   "benchmark": 207646.62
+   "agent": 110138.7,
+   "benchmark": 207646.63
   },
   {
    "date": "2026-02-09",
-   "agent": 107445.87,
-   "benchmark": 209937.13
+   "agent": 109863.81,
+   "benchmark": 209937.14
   },
   {
    "date": "2026-02-12",
-   "agent": 106210.87,
-   "benchmark": 202914.54
+   "agent": 108607.34,
+   "benchmark": 202914.56
   },
   {
    "date": "2026-02-15",
-   "agent": 106226.11,
-   "benchmark": 202621.69
+   "agent": 108622.58,
+   "benchmark": 202621.7
   },
   {
    "date": "2026-02-18",
-   "agent": 106407.65,
+   "agent": 108805.09,
    "benchmark": 203932.27
   },
   {
    "date": "2026-02-21",
-   "agent": 106525.02,
-   "benchmark": 205787.47
+   "agent": 108922.93,
+   "benchmark": 205787.48
   },
   {
    "date": "2026-02-24",
-   "agent": 107040.07,
-   "benchmark": 203818.22
+   "agent": 109453.06,
+   "benchmark": 203818.23
   },
   {
    "date": "2026-02-27",
-   "agent": 106385.06,
+   "agent": 108782.15,
    "benchmark": 199458.36
   },
   {
    "date": "2026-03-02",
-   "agent": 106438.94,
-   "benchmark": 204031.27
+   "agent": 108837.12,
+   "benchmark": 204031.26
   },
   {
    "date": "2026-03-05",
-   "agent": 105717.58,
+   "agent": 108106.91,
    "benchmark": 205874.12
   },
   {
    "date": "2026-03-08",
-   "agent": 105500.05,
-   "benchmark": 199189.02
+   "agent": 107883.74,
+   "benchmark": 199189.03
   },
   {
    "date": "2026-03-11",
-   "agent": 105757.55,
+   "agent": 108147.92,
    "benchmark": 205870.12
   },
   {
    "date": "2026-03-14",
-   "agent": 104923.41,
-   "benchmark": 202500.39
+   "agent": 107292.12,
+   "benchmark": 202500.41
   },
   {
    "date": "2026-03-17",
-   "agent": 105007.67,
-   "benchmark": 207558.1
+   "agent": 107378.41,
+   "benchmark": 207558.12
   },
   {
    "date": "2026-03-20",
-   "agent": 104586.84,
-   "benchmark": 198257.02
+   "agent": 106947.43,
+   "benchmark": 198257.04
   },
   {
    "date": "2026-03-23",
-   "agent": 104586.84,
-   "benchmark": 200368.54
+   "agent": 106947.43,
+   "benchmark": 200368.55
   },
   {
    "date": "2026-03-26",
-   "agent": 104586.84,
-   "benchmark": 195352.96
+   "agent": 106947.43,
+   "benchmark": 195352.97
   },
   {
    "date": "2026-03-29",
-   "agent": 104343.59,
-   "benchmark": 190313.12
+   "agent": 106698.9,
+   "benchmark": 190313.13
   },
   {
    "date": "2026-04-01",
-   "agent": 105099.02,
+   "agent": 107470.75,
    "benchmark": 198312.88
   },
   {
    "date": "2026-04-04",
-   "agent": 105249.56,
-   "benchmark": 198095.56
+   "agent": 107624.56,
+   "benchmark": 198095.57
   },
   {
    "date": "2026-04-07",
-   "agent": 105081.06,
-   "benchmark": 202373.2
+   "agent": 107452.4,
+   "benchmark": 202373.21
   },
   {
    "date": "2026-04-10",
-   "agent": 105002.67,
-   "benchmark": 208719.8
+   "agent": 107374.01,
+   "benchmark": 208719.81
   },
   {
    "date": "2026-04-13",
-   "agent": 105207.47,
-   "benchmark": 211785.05
+   "agent": 107578.81,
+   "benchmark": 211785.06
   },
   {
    "date": "2026-04-16",
-   "agent": 105686.39,
-   "benchmark": 218473.24
+   "agent": 108057.71,
+   "benchmark": 218473.25
   },
   {
    "date": "2026-04-19",
-   "agent": 106076.45,
-   "benchmark": 219505.18
+   "agent": 108450.3,
+   "benchmark": 219505.19
   },
   {
    "date": "2026-04-22",
-   "agent": 106761.61,
-   "benchmark": 224061.25
+   "agent": 109149.85,
+   "benchmark": 224061.26
   },
   {
    "date": "2026-04-25",
-   "agent": 106552.63,
-   "benchmark": 225190.96
+   "agent": 108937.41,
+   "benchmark": 225190.98
   },
   {
    "date": "2026-04-28",
-   "agent": 106489.38,
-   "benchmark": 225806.52
+   "agent": 108871.75,
+   "benchmark": 225806.53
   },
   {
    "date": "2026-05-01",
-   "agent": 107164.1,
-   "benchmark": 222797.74
+   "agent": 109565.06,
+   "benchmark": 222797.75
   },
   {
    "date": "2026-05-04",
-   "agent": 106787.69,
-   "benchmark": 223700.75
+   "agent": 109180.79,
+   "benchmark": 223700.76
   },
   {
    "date": "2026-05-07",
-   "agent": 108726.17,
-   "benchmark": 230378.69
+   "agent": 111162.46,
+   "benchmark": 230378.7
   },
   {
    "date": "2026-05-10",
-   "agent": 109884.59,
-   "benchmark": 234556.78
+   "agent": 112348.87,
+   "benchmark": 234556.8
   },
   {
    "date": "2026-05-13",
-   "agent": 110588.12,
-   "benchmark": 236094.57
+   "agent": 113067.51,
+   "benchmark": 236094.58
   },
   {
    "date": "2026-05-16",
-   "agent": 110411.34,
+   "agent": 112887.67,
    "benchmark": 235144.85
   },
   {
    "date": "2026-05-19",
-   "agent": 109910.32,
-   "benchmark": 231392.0
+   "agent": 112376.75,
+   "benchmark": 231392.01
   },
   {
    "date": "2026-05-22",
-   "agent": 111546.69,
-   "benchmark": 230397.39
+   "agent": 114048.78,
+   "benchmark": 230397.4
   },
   {
    "date": "2026-05-25",
-   "agent": 111546.69,
-   "benchmark": 231768.82
+   "agent": 114048.78,
+   "benchmark": 231768.83
   },
   {
    "date": "2026-05-28",
-   "agent": 112683.62,
-   "benchmark": 230163.72
+   "agent": 115211.1,
+   "benchmark": 230163.74
   },
   {
    "date": "2026-05-31",
-   "agent": 112793.52,
-   "benchmark": 230231.14
+   "agent": 115322.81,
+   "benchmark": 230231.15
   },
   {
    "date": "2026-06-03",
-   "agent": 110907.2,
-   "benchmark": 223650.87
+   "agent": 113399.89,
+   "benchmark": 223650.88
   },
   {
    "date": "2026-06-06",
-   "agent": 108917.65,
-   "benchmark": 213808.71
+   "agent": 111365.43,
+   "benchmark": 213808.72
   },
   {
    "date": "2026-06-09",
-   "agent": 107558.31,
-   "benchmark": 214068.09
+   "agent": 109973.1,
+   "benchmark": 214068.1
   },
   {
    "date": "2026-06-12",
-   "agent": 107987.51,
-   "benchmark": 214485.58
+   "agent": 110413.95,
+   "benchmark": 214485.59
   },
   {
    "date": "2026-06-15",
-   "agent": 109985.61,
-   "benchmark": 221763.25
+   "agent": 112452.49,
+   "benchmark": 221763.26
   },
   {
    "date": "2026-06-18",
-   "agent": 109697.3,
-   "benchmark": 217467.3
+   "agent": 112162.22,
+   "benchmark": 217467.31
   },
   {
    "date": "2026-06-21",
-   "agent": 109697.3,
-   "benchmark": 217614.6
+   "agent": 112162.22,
+   "benchmark": 217614.61
   },
   {
    "date": "2026-06-24",
-   "agent": 107220.22,
-   "benchmark": 208975.29
+   "agent": 109634.45,
+   "benchmark": 208975.3
   },
   {
    "date": "2026-06-27",
-   "agent": 105828.63,
-   "benchmark": 205023.64
+   "agent": 108213.73,
+   "benchmark": 205023.65
   },
   {
    "date": "2026-06-30",
-   "agent": 108246.2,
-   "benchmark": 209130.14
+   "agent": 110679.85,
+   "benchmark": 209130.15
   },
   {
    "date": "2026-07-03",
-   "agent": 108570.1,
-   "benchmark": 212292.63
+   "agent": 111013.23,
+   "benchmark": 212292.64
   },
   {
    "date": "2026-07-06",
-   "agent": 109453.88,
-   "benchmark": 214466.23
+   "agent": 111915.98,
+   "benchmark": 214466.24
   },
   {
    "date": "2026-07-09",
-   "agent": 109849.13,
-   "benchmark": 216321.17
+   "agent": 112315.47,
+   "benchmark": 216321.18
   },
   {
    "date": "2026-07-12",
-   "agent": 110039.12,
-   "benchmark": 220151.44
+   "agent": 112508.27,
+   "benchmark": 220151.45
   },
   {
    "date": "2026-07-15",
-   "agent": 110577.43,
-   "benchmark": 223234.86
+   "agent": 113063.15,
+   "benchmark": 223234.87
   },
   {
    "date": "2026-07-18",
-   "agent": 109910.07,
-   "benchmark": 218567.22
+   "agent": 112385.87,
+   "benchmark": 218567.23
   },
   {
    "date": "2026-07-21",
-   "agent": 109870.61,
-   "benchmark": 222036.8
+   "agent": 112340.54,
+   "benchmark": 222036.81
   },
   {
    "date": "2026-07-24",
-   "agent": 109888.56,
-   "benchmark": 218398.16
+   "agent": 112369.04,
+   "benchmark": 218398.18
   },
   {
    "date": "2026-07-27",
-   "agent": 109951.28,
-   "benchmark": 215389.93
+   "agent": 112432.98,
+   "benchmark": 215389.94
   },
   {
    "date": "2026-07-30",
-   "agent": 109900.92,
-   "benchmark": 218231.37
+   "agent": 112381.05,
+   "benchmark": 218231.38
   },
   {
    "date": "2026-08-02",
-   "agent": 108873.63,
-   "benchmark": 218270.21
+   "agent": 111321.51,
+   "benchmark": 218270.22
   },
   {
    "date": "2026-08-05",
-   "agent": 110411.33,
-   "benchmark": 228636.95
+   "agent": 112906.73,
+   "benchmark": 228636.97
   },
   {
    "date": "2026-08-08",
-   "agent": 110663.02,
-   "benchmark": 231614.28
+   "agent": 113166.55,
+   "benchmark": 231614.29
   },
   {
    "date": "2026-08-11",
-   "agent": 110055.17,
-   "benchmark": 227580.95
+   "agent": 112539.7,
+   "benchmark": 227580.96
   },
   {
    "date": "2026-08-14",
-   "agent": 110288.67,
-   "benchmark": 230345.57
+   "agent": 112781.01,
+   "benchmark": 230345.59
   },
   {
    "date": "2026-08-17",
-   "agent": 110160.41,
-   "benchmark": 230537.65
+   "agent": 112648.4,
+   "benchmark": 230537.66
   },
   {
    "date": "2026-08-20",
-   "agent": 110240.25,
-   "benchmark": 235216.53
+   "agent": 112729.62,
+   "benchmark": 235216.54
   },
   {
    "date": "2026-08-23",
-   "agent": 110203.76,
-   "benchmark": 238349.49
+   "agent": 112692.34,
+   "benchmark": 238349.5
   },
   {
    "date": "2026-08-26",
-   "agent": 110480.67,
-   "benchmark": 238462.86
+   "agent": 112977.81,
+   "benchmark": 238462.87
   },
   {
    "date": "2026-08-29",
-   "agent": 110506.21,
-   "benchmark": 241946.65
+   "agent": 113002.73,
+   "benchmark": 241946.67
   },
   {
    "date": "2026-09-01",
-   "agent": 110395.12,
-   "benchmark": 240387.74
+   "agent": 112889.51,
+   "benchmark": 240387.75
   },
   {
    "date": "2026-09-04",
-   "agent": 111115.06,
-   "benchmark": 246734.43
+   "agent": 113623.7,
+   "benchmark": 246734.44
   },
   {
    "date": "2026-09-07",
-   "agent": 110982.06,
-   "benchmark": 246714.44
+   "agent": 113487.69,
+   "benchmark": 246714.46
   },
   {
    "date": "2026-09-10",
-   "agent": 110159.14,
-   "benchmark": 240136.97
+   "agent": 112645.27,
+   "benchmark": 240136.98
   },
   {
    "date": "2026-09-13",
-   "agent": 111001.29,
-   "benchmark": 241648.14
+   "agent": 113501.02,
+   "benchmark": 241648.15
   },
   {
    "date": "2026-09-16",
-   "agent": 110052.7,
-   "benchmark": 238256.6
+   "agent": 112534.51,
+   "benchmark": 238256.61
   },
   {
    "date": "2026-09-19",
-   "agent": 111106.92,
-   "benchmark": 247197.23
+   "agent": 113601.95,
+   "benchmark": 247197.24
   },
   {
    "date": "2026-09-22",
-   "agent": 113104.8,
-   "benchmark": 255160.08
+   "agent": 115628.08,
+   "benchmark": 255160.1
   },
   {
    "date": "2026-09-25",
-   "agent": 112695.36,
-   "benchmark": 252856.7
+   "agent": 115210.04,
+   "benchmark": 252856.72
   },
   {
    "date": "2026-09-28",
-   "agent": 112084.72,
-   "benchmark": 252840.77
+   "agent": 114590.76,
+   "benchmark": 252840.79
   },
   {
    "date": "2026-10-01",
-   "agent": 111607.33,
-   "benchmark": 254105.41
+   "agent": 114102.8,
+   "benchmark": 254105.42
   },
   {
    "date": "2026-10-04",
-   "agent": 112005.23,
-   "benchmark": 257223.68
+   "agent": 114506.35,
+   "benchmark": 257223.69
   },
   {
    "date": "2026-10-07",
-   "agent": 112477.7,
-   "benchmark": 256788.0
+   "agent": 114986.4,
+   "benchmark": 256788.02
   },
   {
    "date": "2026-10-10",
-   "agent": 112316.59,
-   "benchmark": 253173.12
+   "agent": 114826.64,
+   "benchmark": 253173.13
   },
   {
    "date": "2026-10-13",
-   "agent": 112061.65,
-   "benchmark": 253353.13
+   "agent": 114571.14,
+   "benchmark": 253353.15
   },
   {
    "date": "2026-10-16",
-   "agent": 109572.2,
-   "benchmark": 244499.63
+   "agent": 112044.2,
+   "benchmark": 244499.64
   },
   {
    "date": "2026-10-19",
-   "agent": 109928.22,
-   "benchmark": 246213.68
+   "agent": 112403.39,
+   "benchmark": 246213.69
   },
   {
    "date": "2026-10-22",
-   "agent": 108039.11,
-   "benchmark": 243286.64
+   "agent": 110480.74,
+   "benchmark": 243286.65
   },
   {
    "date": "2026-10-25",
-   "agent": 107125.83,
-   "benchmark": 241625.7
+   "agent": 109547.13,
+   "benchmark": 241625.71
   },
   {
    "date": "2026-10-28",
-   "agent": 108253.4,
-   "benchmark": 245356.12
+   "agent": 110705.98,
+   "benchmark": 245356.13
   },
   {
    "date": "2026-10-31",
-   "agent": 106062.21,
-   "benchmark": 236319.31
+   "agent": 108455.33,
+   "benchmark": 236319.32
   },
   {
    "date": "2026-11-03",
-   "agent": 105246.62,
-   "benchmark": 235847.12
+   "agent": 107620.58,
+   "benchmark": 235847.13
   },
   {
    "date": "2026-11-06",
-   "agent": 102818.7,
-   "benchmark": 227081.06
+   "agent": 105140.7,
+   "benchmark": 227081.07
   },
   {
    "date": "2026-11-09",
-   "agent": 102818.7,
-   "benchmark": 225981.44
+   "agent": 105140.7,
+   "benchmark": 225981.45
   }
  ],
- "journal_head": "b15d27212c2ffd955abdb3c57fe384ebf7fc65b0e4fc9068d09096f373c60eed",
- "journal_entries": 790
+ "journal_head": "906fe4c701eb23758ff2934b72fc1a344fd8213978bffb564d48f1b5fd398cc0",
+ "journal_entries": 738
 }

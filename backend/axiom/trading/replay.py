@@ -115,6 +115,7 @@ async def run_replay(
     should_stop: Callable[[], bool] | None = None,
     ledger: MemoryLedger | None = None,
     listener: Callable[[dict], None] | None = None,
+    on_engine: Callable[..., None] | None = None,
 ) -> ReplayResult:
     s = get_settings()
     start_cash = start_cash or s.trader_starting_cash
@@ -146,6 +147,8 @@ async def run_replay(
     engine.set_books(books)
     if listener is not None:
         engine.listeners.append(listener)
+    if on_engine is not None:
+        on_engine(engine=engine)  # lets a caller reach the engine while the replay is still running
     bench = equal_weight_benchmark(books, start_ts, start_cash)
     all_ts = np.unique(np.concatenate([b.ts for b in books.values()]))
     all_ts = all_ts[all_ts >= start_ts]
