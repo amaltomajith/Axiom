@@ -103,6 +103,9 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = False
     scheduler_cron: str = "0 8 * * 1-5"  # weekdays 08:00 (server time)
     cors_origins: str = "http://localhost:8080,http://localhost:5173,http://localhost:4200"
+    # Serve the built frontend (repo dist/, `npm run build:selfhost`) from this process: one port for a demo tunnel.
+    serve_frontend: bool = False
+    frontend_dist: str | None = None  # defaults to <repo>/dist
 
 
 @lru_cache

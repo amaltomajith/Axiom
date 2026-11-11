@@ -1,6 +1,47 @@
 # Deploying Axiom on free tiers
 
-Frontend and backend deploy separately. Everything below fits free plans with no card, except where noted.
+Two shapes. **The Autopilot demo runs on a laptop** with a public URL, because the trading loop needs a long-lived
+process (section 0). The research terminal can also be deployed to serverless free tiers (sections 1 to 7); there the
+trader does not run, since `TRADER_ENABLED` is ignored on serverless.
+
+## 0. Autopilot demo: one laptop, one port, a free public URL
+
+```bash
+npm run build:selfhost        # Vite build whose API calls go to its own origin
+cd backend
+export UV_PROJECT_ENVIRONMENT=C:/Users/<you>/.venvs/axiom   # only on the machine where the F: drive venv is broken
+DATABASE_URL= SERVE_FRONTEND=true TRADER_ENABLED=true AXIOM_API_TOKEN=<long random string>   uv run python -m axiom.api
+cloudflared tunnel --url http://localhost:8000   # in a second terminal
+```
+
+`cloudflared` prints a `https://<random>.trycloudflare.com` URL. Quick tunnels need no Cloudflare account. Install
+`cloudflared` from Cloudflare's downloads page (on Windows, the `.msi` or `.exe` from the cloudflared GitHub releases).
+
+What a visitor gets, and does not:
+
+- **Read-only.** Every `POST /api/trader/*` needs `Authorization: Bearer $AXIOM_API_TOKEN`. Without a token set, only
+  direct requests from the same machine may write, and a request carrying tunnel or proxy headers (`cf-connecting-ip`,
+  `x-forwarded-for`, `forwarded`, `x-real-ip`, `cf-ray`) never counts as local. Set the token anyway.
+- To drive it yourself through the URL, open the key icon in the header and paste the token. It stays in that browser.
+- **No server-sent events.** Cloudflare documents that quick tunnels do not support SSE. The cockpit notices the
+  stream is down and polls the live panels every 5 seconds instead. For the smoothest demo, present from
+  `http://localhost:8000` and share the tunnel URL for judges to follow along.
+- Quick tunnels have no uptime guarantee, a 200 in-flight request limit, and a new hostname each time. For a fixed
+  URL, create a named Cloudflare Tunnel (needs a free account and a domain).
+
+Before the demo:
+
+1. Put Alpaca **paper** keys in `backend/.env` (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`) and run
+   `uv run python scripts/alpaca_smoke.py --trade` once: it checks the account is paper, crypto is active, and does a
+   ~$10 BTC/USD round trip with a stop.
+2. Set `TRADER_BROKER=alpaca`, `TRADER_SYMBOLS=BTC/USD,ETH/USD` (crypto trades 24/7), `TRADER_BRAIN=llm` if a free
+   LLM key is set, and start the loop **several days early** so the journal, contracts and autonomy ladder show a
+   real track record.
+3. Regenerate the report: `uv run python -m axiom.trading backtest`, then `npm run build:selfhost` so the landing
+   page shows the new numbers.
+
+Frontend and backend deploy separately in the serverless shape below. Everything there fits free plans with no card,
+except where noted.
 
 ```
 Browser ──> Vercel (static, Vite build) ──fetch/SSE──> Vercel Function (FastAPI, Python 3.12)
@@ -51,8 +92,8 @@ Environment variables (Project Settings, Environment Variables):
 | `LLM_CHAIN` | `cerebras,groq,openrouter` | Recommended for a public deploy (the code default is `groq,gemini,openrouter,ollama`; the live demo runs `openrouter,groq`). No `gemini` unless you read the note below. Ollama is skipped automatically on serverless |
 | `CEREBRAS_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` | your free keys | Set at least one |
 | `GROQ_MODEL`, `CEREBRAS_MODEL`, `OPENROUTER_MODEL` | check each provider's current model list | Free model ids change often. Defaults may be stale |
-| `AXIOM_API_TOKEN` | a long random string | Without it, anyone can edit the watchlist and paper trades |
-| `CORS_ORIGINS` | every frontend URL, comma-separated, no trailing slash | Browser calls are blocked otherwise. The live API lists the terminal and Axiom Watch |
+| `AXIOM_API_TOKEN` | a long random string | Without it, nobody can edit the watchlist, paper trades or approvals from a browser |
+| `CORS_ORIGINS` | every frontend URL, comma-separated, no trailing slash | Browser calls are blocked otherwise |
 | `ANALYZE_PER_DAY` | `40` | Global cap. About what the free LLM quotas sustain |
 | `ANALYZE_PER_HOUR` | `6` | Per visitor (the code default is 12; lower is kinder to free quotas) |
 | `RUN_DEADLINE_SECONDS` | `270` | Ends a run cleanly before the 300 s function limit |
@@ -73,7 +114,7 @@ A second Vercel project from the same repository, **Root Directory** the repo ro
 |---|---|
 | `VITE_API_BASE_URL` | the backend URL, for example `https://axiom-api-three.vercel.app` (the live one) |
 
-Then go back to the backend project, add the frontend's URL to `CORS_ORIGINS` and redeploy it. Axiom Watch is a third Vercel project from `angular/`; its API URL comes from `angular/public/config.json` (see [angular/README.md](../angular/README.md)) and its origin must be in `CORS_ORIGINS` too. Open the site, then the key icon in the app header and paste `AXIOM_API_TOKEN` to unlock watchlist, paper trades and approvals.
+Then go back to the backend project, add the frontend's URL to `CORS_ORIGINS` and redeploy it. Open the site, then the key icon in the app header and paste `AXIOM_API_TOKEN` to unlock watchlist, paper trades and approvals.
 
 Cloudflare Pages works the same way (build `npm run build`, output `dist`, same variable, SPA fallback is automatic).
 

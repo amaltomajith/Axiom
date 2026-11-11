@@ -9,8 +9,8 @@ export const TRADER_KEY = 'trader';
 /**
  * Subscribe to the trader's server-sent events for one session and refresh the cockpit when something
  * happens. Events are coalesced (at most one refresh every 700ms) so a fast Time Machine run cannot flood
- * the browser. Returns whether the stream is connected; the queries also poll, so a dropped stream only
- * makes the cockpit a little slower, never stale.
+ * the browser. Returns whether the stream is connected; without it the live queries poll every 5 seconds, so a
+ * dropped stream only makes the cockpit a little slower, never stale.
  */
 export function useTraderStream(session: string): boolean {
   const qc = useQueryClient();
@@ -38,8 +38,17 @@ export function useTraderStream(session: string): boolean {
     };
   }, [session, qc]);
 
+  // No stream (for example behind a Cloudflare quick tunnel, which does not carry SSE): poll the live parts faster.
+  useEffect(() => {
+    if (connected) return;
+    const id = window.setInterval(() => qc.invalidateQueries({ predicate: q => q.queryKey[0] === TRADER_KEY && LIVE_KEYS.has(String(q.queryKey[1])) }), 5_000);
+    return () => window.clearInterval(id);
+  }, [connected, qc]);
+
   return connected;
 }
+
+const LIVE_KEYS = new Set(['status', 'positions', 'journal', 'equity', 'replays']);
 
 /** A trader control (POST) with the standard error toast and a cockpit refresh afterwards. */
 export function useTraderAction<A, R>(fn: (arg: A) => Promise<R>, success?: (r: R) => string | null) {

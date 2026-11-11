@@ -1,6 +1,34 @@
 # Architecture and design decisions
 
-## Principle: code computes, models interpret, policy decides, humans approve
+## Autopilot: the trading agent
+
+```
+bars + news ──> tournament ──> Brain.decide ──> OrderIntent ──> RiskKernel.review ──> Broker ──> journal
+(data.py)     (qualified set)  (Rule | LLM)    (no quantity)    (sizes, or blocks)   (Sim | Alpaca paper)
+                                    └── trade contract ── graded at close ── calibration ── autonomy ladder
+```
+
+All in `backend/axiom/trading/`. `Engine.step` is the single decision path: the live loop (`live.py`) calls it on a
+timer and the Time Machine (`replay.py`) calls it bar by bar over history through `SimBroker`, so a backtest cannot
+use information a live run would not have had.
+
+| Piece | What it does | Trusts |
+|---|---|---|
+| `tournament.py` | Every 21 bars, scores 5 strategies on the trailing 252 bars net of costs; only qualifiers may trade | price history only |
+| `brain.py`, `llm_brain.py` | Turns signals into an `OrderIntent` with a stop and no quantity. The LLM brain may only pick a qualified, signalling strategy or stay flat; its output schema forbids extra fields and its thesis numbers are checked against the facts given. Any failure falls back to the rule brain, marked degraded | the tournament |
+| `risk.py` | `RiskKernel.review`: pure code, rules R0 to R12 (kill switch, paper only, allowlist, daily loss halt, stale data, mandatory stop, sizing at 1% risk, 20% position cap, gross exposure, max positions, trades per day, cooldown after a stop, autonomy level). Exits that reduce risk are always allowed | nothing the LLM says |
+| `broker/` | `SimBroker` (next-bar fills, fees, slippage) and `AlpacaPaperBroker` (`paper=True` hard-coded, idempotent client order ids, partial fills, native stops) | |
+| `contracts.py` | Opens a contract per entry (confidence, expected move, horizon, invalidations), grades it at close (A to D, Brier), and keeps calibration buckets. In `SHADOW` mode it opens virtual contracts | |
+| `autonomy.py` | The ladder `SHADOW` to `SUPERVISED` to `AUTONOMOUS`: promotion from graded contracts, Brier and net return; demotion on a daily loss halt, a losing streak or poor calibration. A human-set level is a ceiling | graded contracts |
+| `journal.py` | Template text from facts; an LLM rewrite is kept only if every number in it is in the facts. Each entry is sha256 chained to the previous one; `verify_chain` finds any edit | facts |
+| `service.py`, `api.py` | `/api/trader/*`: public reads, token-guarded controls, Time Machine jobs, server-sent events | |
+
+Why the LLM is never backtested: a model trained on market history can remember what happened next, so a historical
+backtest of it would look better than it is. It is judged only forward, on paper, by its own contracts.
+
+## Research agents
+
+### Principle: code computes, models interpret, policy decides, humans approve
 
 | Layer | Responsibility | Trusts |
 |---|---|---|
@@ -11,7 +39,7 @@
 | Policy guard | cap rating/conviction from evidence and analyst agreement | evidence registry |
 | Human approval | the only path to any external write | the user |
 
-## One analysis run
+### One analysis run
 
 1. **Fail fast**: the ticker's data must exist before any LLM token is spent.
 2. **Analysts in parallel** (bounded concurrency), each with its own tool allowlist.
@@ -29,7 +57,7 @@
 Failure is graceful: a failed analyst becomes `insufficient_data` and caps conviction; a failed synthesizer yields a
 `NO_CALL` memo with the analyst findings; only total LLM outage or budget exhaustion aborts a run (as a clear error event).
 
-## Why these choices
+### Why these choices
 
 - **Custom orchestration, no LangChain**: explicit control over tokens and a trace that mirrors the code; easy to read.
 - **MCP as the only data path**: the agent code is identical in-process, over stdio, or over HTTP, and the same tools are
@@ -38,7 +66,7 @@ Failure is graceful: a failed analyst becomes `insufficient_data` and caps convi
 - **SQLite locally, Postgres when deployed**, behind one `Store` (portable SQL in `axiom/db.py`). The response cache and the per-client and daily usage caps live in the same database, so serverless instances share them.
 - **Request-keyed LLM cache and recordings**: replay evals and CI at zero cost.
 
-## Security model
+### Security model
 
 - Fetched text is *data*: cleaned, truncated, scanned for instructions aimed at an AI; flagged text is **redacted
   before the model sees it** (not merely excluded from a score); SEC excerpts containing an injection are dropped.
@@ -47,7 +75,7 @@ Failure is graceful: a failed analyst becomes `insufficient_data` and caps convi
   are dry-run (**fail closed** when Composio is configured).
 - The token lives in the user's browser storage, never in the bundle; analyses are rate-limited per client.
 
-## Evals (`backend/evals`)
+### Evals (`backend/evals`)
 
 Fictional ticker "ACME" (no memorised facts) in deterministic synthetic worlds: random walk, clean uptrend, conflicting
 analysts, thin data, missing filings, and a **positive control** with a genuine edge (a system that can only say HOLD

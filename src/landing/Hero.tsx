@@ -1,39 +1,80 @@
 import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
-import { ClaimList } from '@/components/MemoPanel';
-import { PriceChart } from '@/components/PriceChart';
+import { Line, LineChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { frac, ratingLabel, ratingTone, shortDate, TONE_TEXT } from '@/lib/format';
+import { useChartTheme } from '@/hooks/useChartTheme';
+import { frac, num, shortDate } from '@/lib/format';
 import { spring, useReducedMotion } from '@/lib/motion';
-import { cn } from '@/lib/utils';
-import { snapshot } from './data';
+import report from '../../docs/backtest-report.json';
+import { REPO } from './data';
 
-/** The preview is the real chart component and the real memo, fed by a recorded run. Chips open real evidence. */
-function Preview() {
-  const { memo, evidence } = snapshot.result;
-  const reduce = useReducedMotion();
-  const tone = ratingTone(memo.rating);
+const BACKTEST_DOC = `${REPO}/blob/main/docs/backtest-report.md`;
+
+/** The real Time Machine report (docs/backtest-report.json, written by `python -m axiom.trading backtest`). */
+function ReportPreview() {
+  const t = useChartTheme();
+  const { agent, benchmark, verdict, contracts, risk_events: risk, period, universe } = report;
+  const blocked = Object.values(risk.blocked as Record<string, number>).reduce((a, b) => a + b, 0);
+  const rows: { label: string; a: string; b: string }[] = [
+    { label: 'Return', a: frac(agent.total_return, 1, true), b: frac(benchmark.total_return, 1, true) },
+    { label: 'Sharpe', a: num(agent.sharpe, 2), b: num(benchmark.sharpe, 2) },
+    { label: 'Worst drawdown', a: frac(agent.max_drawdown, 1), b: frac(benchmark.max_drawdown, 1) },
+  ];
   return (
     <div className="surface overflow-hidden shadow-md">
-      <div className="flex items-end justify-between gap-4 px-5 pb-1 pt-5 sm:px-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-1 pt-5 sm:px-6">
         <div>
-          <p className="font-mono text-small text-muted-foreground">{snapshot.ticker}</p>
-          <p className="tnum text-h2">${snapshot.bars[snapshot.bars.length - 1].close.toFixed(2)}</p>
+          <p className="text-small font-medium">Time Machine backtest</p>
+          <p className="text-caption text-muted-foreground">
+            {universe.length} symbols, {period.years} years, the live engine replayed bar by bar
+          </p>
         </div>
-        <p className="text-caption text-muted-foreground">14-day range, zero drift</p>
+        <Badge variant={verdict.verdict === 'edge_detected' ? 'success' : 'warning'} className="font-mono">
+          {verdict.verdict}
+        </Badge>
       </div>
-      <div className="px-2 sm:px-3">
-        <PriceChart bars={snapshot.bars} cone={snapshot.cone} height={230} animate={!reduce} />
+      <div className="h-[200px] px-2 pt-2 sm:px-3" aria-hidden>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={report.curve} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
+            <XAxis dataKey="date" hide />
+            <YAxis hide domain={['auto', 'auto']} />
+            <Line dataKey="benchmark" stroke={t.benchmark} strokeWidth={1.5} dot={false} isAnimationActive={false} />
+            <Line dataKey="agent" stroke={t.accent} strokeWidth={2.25} dot={false} isAnimationActive={false} />
+          </LineChart>
+        </ResponsiveContainer>
       </div>
       <div className="border-t border-border px-5 py-4 sm:px-6">
-        <div className="flex items-baseline justify-between gap-4">
-          <p className={cn('text-h3', TONE_TEXT[tone])}>{ratingLabel(memo.rating)}</p>
-          <p className="tnum text-caption text-muted-foreground">{frac(memo.conviction, 0)} conviction</p>
-        </div>
-        <div className="mt-3">
-          <ClaimList claims={[memo.bull_case[0], memo.bear_case[0]].filter(Boolean)} result={{ evidence }} />
-        </div>
+        <table className="w-full text-small">
+          <thead>
+            <tr className="text-caption text-muted-foreground">
+              <th className="pb-1.5 text-left font-normal" scope="col">
+                <span className="sr-only">Metric</span>
+              </th>
+              <th className="pb-1.5 text-right font-normal text-primary" scope="col">
+                Autopilot
+              </th>
+              <th className="pb-1.5 text-right font-normal" scope="col">
+                Buy and hold
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(r => (
+              <tr key={r.label}>
+                <th className="py-1 text-left font-normal text-muted-foreground" scope="row">
+                  {r.label}
+                </th>
+                <td className="tnum py-1 text-right font-medium">{r.a}</td>
+                <td className="tnum py-1 text-right">{r.b}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="tnum mt-3 text-caption text-muted-foreground">
+          {contracts.n} trade contracts graded, Brier {num(contracts.brier, 3)}. {risk.stop_outs} stop-outs, {blocked} entries blocked by the risk kernel, {risk.daily_loss_halts} daily loss halts.
+        </p>
       </div>
     </div>
   );
@@ -51,10 +92,10 @@ export function Hero() {
     <section className="mx-auto grid min-h-[min(calc(100dvh-4rem),44rem)] max-w-[1200px] items-center gap-12 px-4 pb-16 pt-12 sm:px-6 lg:grid-cols-12 lg:gap-10">
       <div className="lg:col-span-5">
         <motion.h1 {...item(0)} className="text-display">
-          Research that shows its work.
+          A trading agent that earns autonomy.
         </motion.h1>
         <motion.p {...item(0.08)} className="mt-5 max-w-[34ch] text-h3 font-normal leading-snug text-muted-foreground">
-          Agents research a stock with open tools, argue both sides, and cite every number. Then the call gets scored.
+          It trades paper money inside risk rules it cannot override, states its odds before every trade, and gets graded.
         </motion.p>
         <motion.div {...item(0.16)} className="mt-8 flex flex-wrap items-center gap-3">
           <Button asChild size="lg">
@@ -63,16 +104,20 @@ export function Hero() {
             </Link>
           </Button>
           <Button asChild size="lg" variant="secondary">
-            <a href="#how">See how it works</a>
+            <a href={BACKTEST_DOC} target="_blank" rel="noreferrer">
+              Read the backtest
+            </a>
           </Button>
         </motion.div>
       </div>
       <motion.div {...item(0.2)} className="lg:col-span-7">
-        <Preview />
+        <ReportPreview />
         <p className="mt-3 px-1 text-caption text-muted-foreground">
-          A real run on {snapshot.ticker}, recorded {shortDate(snapshot.captured_at)}. Hover a source tag to see the tool result behind it.
+          The real report, generated {shortDate(report.generated_at)}. {verdict(report.verdict.message)} It is shown here anyway.
         </p>
       </motion.div>
     </section>
   );
 }
+
+const verdict = (m: string) => (m.endsWith('.') ? m : `${m}.`);

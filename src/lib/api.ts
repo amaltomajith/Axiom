@@ -24,7 +24,8 @@ import type {
   WatchItem,
 } from './types';
 
-export const API_BASE: string = (import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000';
+// `npm run build:selfhost` builds for the one-port demo where FastAPI serves this bundle: the API is same-origin.
+export const API_BASE: string = import.meta.env.MODE === 'selfhost' ? '' : ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000');
 const TOKEN_KEY = 'axiom_token';
 
 export class ApiError extends Error {
@@ -77,7 +78,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init?.headers ?? {}) },
     });
   } catch {
-    throw new ApiError(`Cannot reach the Axiom backend at ${API_BASE}. Is it running?`, 0);
+    throw new ApiError(`Cannot reach the Axiom backend at ${API_BASE || window.location.origin}. Is it running?`, 0);
   }
   if (!res.ok) {
     let msg = res.statusText;

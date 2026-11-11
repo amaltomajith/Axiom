@@ -8,6 +8,7 @@
     "dev:all": "node scripts/dev.mjs",
     "build": "vite build",
     "build:dev": "vite build --mode development",
+    "build:selfhost": "vite build --mode selfhost",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",

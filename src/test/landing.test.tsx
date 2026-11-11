@@ -6,11 +6,13 @@ import { describe, expect, it } from 'vitest';
 import { MCP_TOOLS, snapshot } from '@/landing/data';
 import { Evals } from '@/landing/Evals';
 import { Footer } from '@/landing/Footer';
+import { Hero } from '@/landing/Hero';
 import { LogoWall } from '@/landing/LogoWall';
 import { McpSection } from '@/landing/McpSection';
 import { Nav } from '@/landing/Nav';
 import { StackSection } from '@/landing/StackSection';
 import { Walkthrough } from '@/landing/Walkthrough';
+import report from '../../docs/backtest-report.json';
 
 const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
 
@@ -42,6 +44,15 @@ describe('landing data is real, not typed in', () => {
 });
 
 describe('landing sections', () => {
+  it('hero shows the real backtest report, verdict included, against buy and hold', () => {
+    wrap(<Hero />);
+    expect(screen.getByText(report.verdict.verdict)).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Autopilot' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Buy and hold' })).toBeInTheDocument();
+    expect(screen.getByText(new RegExp(`${report.contracts.n} trade contracts graded`))).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open terminal' })).toHaveAttribute('href', '/app');
+  });
+
   it('nav has one primary call to action and labelled landmarks', () => {
     wrap(<Nav />);
     expect(screen.getByRole('link', { name: 'Open terminal' })).toHaveAttribute('href', '/app');

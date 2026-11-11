@@ -8,11 +8,12 @@ import hmac
 import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 from sse_starlette.sse import EventSourceResponse
 
@@ -21,7 +22,7 @@ from axiom.actions import approval
 from axiom.actions.executors import build_executor
 from axiom.agents.toolbox import McpToolBox
 from axiom.agents.trace import Tracer
-from axiom.config import ON_SERVERLESS, get_settings
+from axiom.config import BACKEND_DIR, ON_SERVERLESS, get_settings
 from axiom.data import market, news, sec
 from axiom.llm.client import LLMClient, TokenBudget
 from axiom.llm.providers import build_chain
@@ -456,7 +457,29 @@ def create_app() -> FastAPI:
         store().delete_trade(trade_id)
         return {"ok": True}
 
+    if settings.serve_frontend:
+        mount_frontend(app, settings.frontend_dist)
     return app
+
+
+def mount_frontend(app: FastAPI, dist: str | None = None) -> None:
+    """Serve the built single-page app after every API route: real files as-is, other paths get index.html."""
+    root = (Path(dist) if dist else BACKEND_DIR.parent / "dist").resolve()
+    index = root / "index.html"
+    if not index.is_file():
+        raise RuntimeError(
+            f"SERVE_FRONTEND is on but {index} does not exist: run `npm run build:selfhost` first"
+        )
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def spa(path: str):
+        if path == "api" or path.startswith("api/"):
+            raise HTTPException(404, "not found")
+        target = (root / path).resolve()
+        if path and target.is_file() and target.is_relative_to(root):
+            cache = "public, max-age=31536000, immutable" if path.startswith("assets/") else "no-cache"
+            return FileResponse(target, headers={"Cache-Control": cache})
+        return FileResponse(index, headers={"Cache-Control": "no-cache"})
 
 
 app = create_app()

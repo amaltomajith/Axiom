@@ -11,7 +11,7 @@ import { Walkthrough } from '@/landing/Walkthrough';
 
 export default function Landing() {
   useEffect(() => {
-    document.title = 'Axiom: research that shows its work';
+    document.title = 'Axiom Autopilot: a trading agent that earns autonomy';
   }, []);
   return (
     <div className="min-h-[100dvh] bg-background">

@@ -205,3 +205,31 @@ async def test_hub_drops_oldest_for_slow_clients():
     hub.unsubscribe(q)
     hub.publish({"i": 9})
     assert q.empty()
+
+
+def test_serves_the_built_frontend_on_the_same_port(tmp_path, monkeypatch):
+    dist = tmp_path / "dist"
+    (dist / "assets").mkdir(parents=True)
+    (dist / "index.html").write_text("<!doctype html><div id=root></div>", encoding="utf-8")
+    (dist / "assets" / "app.js").write_text("console.log(1)", encoding="utf-8")
+    (tmp_path / "secret.txt").write_text("nope", encoding="utf-8")
+    monkeypatch.setenv("SERVE_FRONTEND", "true")
+    monkeypatch.setenv("FRONTEND_DIST", str(dist))
+    get_settings.cache_clear()
+    c = TestClient(create_app())
+    assert c.get("/api/trader/status").json()["paper"] is True  # API routes win
+    assert "id=root" in c.get("/").text
+    assert "id=root" in c.get("/app?tab=autopilot").text  # SPA fallback for client routes
+    js = c.get("/assets/app.js")
+    assert js.text == "console.log(1)" and "immutable" in js.headers["cache-control"]
+    assert c.get("/api/nope").status_code == 404  # unknown API paths stay 404, not index.html
+    assert "nope" not in c.get("/../secret.txt").text
+    assert "nope" not in c.get("/%2e%2e/secret.txt").text
+
+
+def test_serve_frontend_without_a_build_fails_loudly(tmp_path, monkeypatch):
+    monkeypatch.setenv("SERVE_FRONTEND", "true")
+    monkeypatch.setenv("FRONTEND_DIST", str(tmp_path / "missing"))
+    get_settings.cache_clear()
+    with pytest.raises(RuntimeError, match="build:selfhost"):
+        create_app()
