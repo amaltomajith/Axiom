@@ -5,6 +5,7 @@ import type {
   BacktestResponse,
   CalibrationResponse,
   ChainCheck,
+  DeskStatus,
   EquityPoint,
   ForecastResponse,
   Health,
@@ -16,6 +17,7 @@ import type {
   RedteamResult,
   RegimeResponse,
   ReplayJob,
+  Scenario,
   Scorecard,
   Thesis,
   TradeContract,
@@ -110,8 +112,7 @@ export const api = {
   indicators: (t: string) => cachedGet<IndicatorsResponse>(`/api/quant/${enc(t)}/indicators`),
   regime: (t: string) => cachedGet<RegimeResponse>(`/api/quant/${enc(t)}/regime`),
   forecast: (t: string, horizon = 14) => cachedGet<ForecastResponse>(`/api/quant/${enc(t)}/forecast?horizon=${horizon}`),
-  backtest: (t: string, strategy: string) =>
-    cachedGet<BacktestResponse>(`/api/quant/${enc(t)}/backtest?strategy=${enc(strategy)}`),
+  backtest: (t: string, strategy: string) => cachedGet<BacktestResponse>(`/api/quant/${enc(t)}/backtest?strategy=${enc(strategy)}`),
   walkForward: (t: string) => cachedGet<BacktestResponse>(`/api/quant/${enc(t)}/walk-forward`),
   news: (t: string) => cachedGet<NewsResponse>(`/api/news/${enc(t)}`),
 
@@ -138,8 +139,7 @@ export const api = {
   deleteTrade: (id: string) => request<{ ok: boolean }>(`/api/trades/${enc(id)}`, { method: 'DELETE' }),
 };
 
-const post = <T>(path: string, body?: unknown) =>
-  request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
+const post = <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) });
 const sess = (session: string) => `session=${enc(session)}`;
 
 /** The Autopilot paper trader. Reads are public; every POST needs the API token (or a direct local request). */
@@ -153,6 +153,8 @@ export const trader = {
   equity: (session = 'live') => request<EquityPoint[]>(`/api/trader/equity?${sess(session)}&limit=5000`),
   report: () => request<BacktestReport>('/api/trader/backtest/report'),
   replays: () => request<ReplayJob[]>('/api/trader/replays'),
+  scenarios: () => request<Scenario[]>('/api/trader/scenarios'),
+  desk: () => request<DeskStatus>('/api/trader/desk'),
 
   kill: (reason: string) => post<{ ok: boolean; closed: number }>('/api/trader/kill', { reason }),
   resume: () => post<{ ok: boolean }>('/api/trader/resume'),
@@ -161,7 +163,7 @@ export const trader = {
   setAutonomy: (level: string, lock = true) => post<{ ok: boolean; autonomy: string }>('/api/trader/autonomy', { level, lock }),
   approve: (id: string) => post<{ ok: boolean; reason?: string }>(`/api/trader/orders/${enc(id)}/approve`),
   reject: (id: string) => post<{ ok: boolean }>(`/api/trader/orders/${enc(id)}/reject`),
-  replay: (bars: number, delay: number) => post<ReplayJob>('/api/trader/replay', { bars, delay }),
+  replay: (bars: number, delay: number, scenario?: string) => post<ReplayJob>('/api/trader/replay', scenario ? { delay, scenario } : { bars, delay }),
   stopReplay: (id: string) => post<ReplayJob>(`/api/trader/replays/${enc(id)}/stop`),
   redteam: () => post<RedteamResult>('/api/trader/redteam'),
   streamUrl: (session = 'live') => `${API_BASE}/api/trader/stream?${sess(session)}`,

@@ -23,6 +23,7 @@ Boundaries, all enforced in code:
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from collections import deque
 from collections.abc import Awaitable, Callable
@@ -83,6 +84,7 @@ class DeskReview:
     guardrails: list[str] = field(default_factory=list)
     degraded: list[str] = field(default_factory=list)
     evidence: list[str] = field(default_factory=list)
+    sources: dict[str, dict] = field(default_factory=dict)  # each cited id: tool, args, as-of, short excerpt
     error: str | None = None
 
     def summary(self) -> dict[str, Any]:
@@ -90,7 +92,7 @@ class DeskReview:
             "run_id": self.run_id, "rating": self.rating, "conviction": self.conviction,
             "thesis": self.thesis, "stances": self.stances, "critic_ok": self.critic_ok,
             "critic_issues": self.critic_issues, "guardrails": self.guardrails, "degraded": self.degraded,
-            "evidence": self.evidence, "error": self.error,
+            "evidence": self.evidence, "sources": self.sources, "error": self.error,
         }  # fmt: skip
 
 
@@ -119,8 +121,23 @@ def review_from(result: AnalysisResult, symbol: str, strategy: str | None, start
         guardrails=[g[:300] for g in result.guardrails][:6],
         degraded=[d[:300] for d in result.degraded][:4],
         evidence=cited,
+        sources={i: _source_view(result.evidence[i]) for i in cited[:8]},
         error=None if result.memo.rating != "NO_CALL" else "the desk issued no rating (NO_CALL)",
     )
+
+
+def _source_view(item: dict) -> dict[str, Any]:
+    """What a citation chip shows: the tool, its arguments, the as-of stamp and a short excerpt."""
+    meta: dict[str, Any] = {}
+    try:
+        parsed = json.loads(item.get("text") or "")
+        meta = parsed.get("meta", {}) if isinstance(parsed, dict) else {}
+    except json.JSONDecodeError:
+        pass
+    return {
+        "id": item.get("id"), "tool": item.get("tool"), "args": item.get("args"),
+        "as_of": meta.get("as_of"), "provider": meta.get("provider"), "excerpt": (item.get("text") or "")[:300],
+    }  # fmt: skip
 
 
 def _event_view(ev: TraceEvent, symbol: str) -> dict[str, Any]:

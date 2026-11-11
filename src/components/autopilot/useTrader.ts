@@ -29,7 +29,7 @@ export function useTraderStream(session: string): boolean {
     };
     es.onopen = () => setConnected(true);
     es.onerror = () => setConnected(false);
-    for (const kind of ['journal', 'order', 'state', 'tick', 'pending', 'replay']) es.addEventListener(kind, refresh);
+    for (const kind of ['journal', 'order', 'state', 'tick', 'pending', 'replay', 'desk', 'desk_done']) es.addEventListener(kind, refresh);
     return () => {
       es.close();
       if (timer.current != null) window.clearTimeout(timer.current);
@@ -48,7 +48,7 @@ export function useTraderStream(session: string): boolean {
   return connected;
 }
 
-const LIVE_KEYS = new Set(['status', 'positions', 'journal', 'equity', 'replays']);
+const LIVE_KEYS = new Set(['status', 'positions', 'journal', 'equity', 'replays', 'desk']);
 
 /** A trader control (POST) with the standard error toast and a cockpit refresh afterwards. */
 export function useTraderAction<A, R>(fn: (arg: A) => Promise<R>, success?: (r: R) => string | null) {

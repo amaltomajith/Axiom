@@ -6,6 +6,7 @@ import { trader } from '@/lib/api';
 import { frac, money } from '@/lib/format';
 import type { Autonomy, LadderProgress, RedteamResult, TraderStatus } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { regimeSummary } from './deskModel';
 import { useTraderAction } from './useTrader';
 
 const LEVELS: { id: Autonomy; label: string; hint: string }[] = [
@@ -89,7 +90,7 @@ export function RiskBudget({ status }: { status: TraderStatus }) {
   if (!b) return null;
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <Meter label="Daily loss budget used" used={b.daily_loss_used} text={`${frac(b.daily_pl_pct, 2, true)} of -${frac(b.daily_loss_limit_pct, 0)}`} />
+      <Meter label="Daily loss budget used" used={b.daily_loss_used} text={`${frac(b.daily_pl_pct, 2, true)} of -${frac(b.daily_loss_limit_pct, 1)}`} />
       <Meter label="Gross exposure" used={b.exposure_pct / (b.max_gross_pct || 1)} text={`${frac(b.exposure_pct, 0)} of ${frac(b.max_gross_pct, 0)}`} warnAt={0.9} />
       <Meter label="Trades today" used={b.trades_today / (b.max_trades_per_day || 1)} text={`${b.trades_today} of ${b.max_trades_per_day}`} warnAt={0.8} />
       <Meter label="Open positions" used={b.open_positions / (b.max_open_positions || 1)} text={`${b.open_positions} of ${b.max_open_positions}`} warnAt={1.01} />
@@ -128,6 +129,7 @@ export function ControlBar({ status, onRedteam }: { status: TraderStatus; onRedt
 
   const hb = status.heartbeat_age_seconds;
   const alive = status.running && hb != null && hb < 3 * 60 + (status.timeframe === '1Day' ? 86_400 : 0);
+  const regime = regimeSummary(status.regimes);
   return (
     <section className="surface surface-lit overflow-hidden" aria-label="Autopilot controls">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
@@ -184,7 +186,7 @@ export function ControlBar({ status, onRedteam }: { status: TraderStatus; onRedt
         </p>
       )}
       <div className="grid gap-6 border-t border-border px-5 py-4 sm:px-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           <div>
             <p className="text-caption text-muted-foreground">Paper equity</p>
             <p className="tnum mt-1 text-h2">{money(status.account?.equity)}</p>
@@ -195,6 +197,16 @@ export function ControlBar({ status, onRedteam }: { status: TraderStatus; onRedt
               <p className="tnum mt-1 text-h2 text-muted-foreground">{money(status.benchmark_value)}</p>
             ) : (
               <p className="mt-2 text-small text-muted-foreground">Starts with the first tick</p>
+            )}
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <p className="text-caption text-muted-foreground">Market regime</p>
+            {regime ? (
+              <p className="mt-1 text-h3" title={regime.detail}>
+                {regime.headline}
+              </p>
+            ) : (
+              <p className="mt-2 text-small text-muted-foreground">Known after the first strategy check</p>
             )}
           </div>
         </div>

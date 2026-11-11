@@ -9,6 +9,7 @@ import { trader } from '@/lib/api';
 import type { RedteamResult } from '@/lib/types';
 import { Approvals, Positions } from './Book';
 import { ControlBar } from './ControlBar';
+import { DeskRun } from './DeskRun';
 import { JournalFeed } from './JournalFeed';
 import { Contracts, EquityChart } from './Performance';
 import { ReportView, TimeMachine } from './TimeMachine';
@@ -84,6 +85,7 @@ export function AutopilotTab() {
           </Button>
         </div>
       )}
+      <DeskRun session={session} lossLimit={s.budget?.daily_loss_limit_pct} />
       {/* Every row is one height: cards stretch to their neighbour, and lists scroll inside their own card. */}
       <div className="grid gap-6 lg:grid-cols-12">
         <EquityChart session={session} className={live ? 'lg:col-span-8' : 'lg:col-span-12'} />

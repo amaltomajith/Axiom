@@ -378,6 +378,62 @@ export interface TraderStatus {
   budget?: RiskBudget;
   ladder?: LadderProgress | null;
   llm_calls_left?: number | null;
+  desk_runs_left?: number | null;
+  regimes?: Record<string, { trend?: string; volatility?: string }>;
+}
+
+/** One step of a trading desk review, as streamed from the agents' trace. */
+export interface DeskEvent {
+  seq: number;
+  ts: number;
+  run_id: string;
+  kind: string;
+  agent: string;
+  symbol: string;
+  data: Record<string, unknown>;
+}
+
+/** What the four agents concluded about one candidate entry. */
+export interface DeskReview {
+  run_id: string | null;
+  rating: Rating | null;
+  conviction: number | null;
+  thesis: string | null;
+  stances: Record<string, string>;
+  critic_ok: boolean | null;
+  critic_issues: string[];
+  guardrails: string[];
+  degraded: string[];
+  evidence: string[];
+  sources: Record<string, EvidenceRef>;
+  error: string | null;
+}
+
+export interface DeskStatus {
+  enabled: boolean;
+  runs: Record<string, { review: DeskReview | null; events: DeskEvent[]; started_at: number; strategy: string | null }>;
+  reviewing: string[];
+  runs_left?: number;
+  max_runs_per_hour?: number;
+  hold_policy?: string;
+  last_error?: string | null;
+}
+
+export interface RuleCheck {
+  rule: string;
+  ok: boolean;
+  detail: string;
+}
+
+/** A short replay of a fixed window of real history, with what it is expected to show. */
+export interface Scenario {
+  id: string;
+  title: string;
+  summary: string;
+  symbols: string[];
+  start: string;
+  end: string;
+  expect: string;
 }
 
 export interface TraderPosition {
@@ -480,6 +536,8 @@ export interface ReplayJob {
   finished_at: number | null;
   error: string | null;
   verdict: { verdict: Verdict; message: string; sharpe_diff: number | null; sharpe_diff_ci95: [number | null, number | null] } | null;
+  scenario?: string | null;
+  outcome?: { ok: boolean; detail: string } | null;
 }
 
 export interface ReportMetrics {

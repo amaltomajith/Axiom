@@ -11,7 +11,7 @@ import { Section } from '@/components/kit/Surface';
 import { useChartTheme } from '@/hooks/useChartTheme';
 import { trader } from '@/lib/api';
 import { frac, money, num } from '@/lib/format';
-import type { ReportMetrics, Verdict } from '@/lib/types';
+import type { ReportMetrics, Scenario, Verdict } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { TRADER_KEY, shortDate, useTraderAction } from './useTrader';
 
@@ -23,6 +23,8 @@ const VERDICT: Record<Verdict, { title: string; variant: 'default' | 'warning' |
 };
 
 type Speed = 'fast' | 'watch';
+/** Seconds per bar for a scenario: a window of about fifty days plays in roughly twenty seconds. */
+const SCENARIO_DELAY = 0.4;
 
 /** Replay history through the live engine, then browse that run as its own session. */
 export function TimeMachine({ session, onSession, className }: { session: string; onSession: (s: string) => void; className?: string }) {
@@ -40,6 +42,15 @@ export function TimeMachine({ session, onSession, className }: { session: string
     },
   );
   const running = (replays.data ?? []).find(r => ['queued', 'fetching', 'running'].includes(r.status));
+  const scenarios = useQuery({ queryKey: [TRADER_KEY, 'scenarios'], queryFn: trader.scenarios, staleTime: Infinity, retry: false });
+  const play = useTraderAction(
+    (sc: Scenario) => trader.replay(0, SCENARIO_DELAY, sc.id),
+    r => {
+      onSession(r.session);
+      return 'Scenario started';
+    },
+  );
+  const titleOf = (id?: string | null) => scenarios.data?.find(x => x.id === id)?.title;
   const stop = useTraderAction(
     (id: string) => trader.stopReplay(id),
     () => 'Stopping the replay',
@@ -85,6 +96,27 @@ export function TimeMachine({ session, onSession, className }: { session: string
           </div>
         )}
       </div>
+      {(scenarios.data ?? []).length > 0 && (
+        <div className="border-t border-border px-5 py-4 sm:px-6">
+          <p className="text-caption font-medium uppercase tracking-[0.12em] text-muted-foreground">Three short runs on real history</p>
+          <ul className="mt-3 space-y-2">
+            {(scenarios.data ?? []).map(sc => (
+              <li key={sc.id} className="flex items-start gap-3 rounded-md border border-border bg-muted/40 px-3.5 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-small font-medium">{sc.title}</p>
+                  <p className="mt-0.5 text-caption text-muted-foreground">{sc.summary}</p>
+                  <p className="mt-1 text-caption text-muted-foreground">
+                    {sc.symbols.length === 1 ? sc.symbols[0] : `${sc.symbols.length} markets`}, {sc.start} to {sc.end}
+                  </p>
+                </div>
+                <Button size="xs" variant="secondary" disabled={!!running || play.isPending} onClick={() => play.mutate(sc)} aria-label={`Play ${sc.title}`}>
+                  <Play /> Play
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       {(replays.data ?? []).length === 0 && (
         <EmptyState
           icon={History}
@@ -110,13 +142,21 @@ export function TimeMachine({ session, onSession, className }: { session: string
           {(replays.data ?? []).slice(0, 5).map(r => (
             <ListRow key={r.id}>
               <Cell>
-                <span className="font-mono text-small">{r.id}</span>
+                {r.scenario ? <span className="text-small font-medium">{titleOf(r.scenario) ?? r.scenario}</span> : <span className="font-mono text-small">{r.id}</span>}
                 <span className="block text-caption text-muted-foreground">
-                  {r.symbols.join(', ')}, {r.status}
+                  {r.outcome ? r.outcome.detail : `${r.symbols.join(', ')}, ${r.status}`}
                   {r.error ? `: ${r.error}` : ''}
                 </span>
               </Cell>
-              <Cell align="right">{r.verdict ? <Badge variant={VERDICT[r.verdict.verdict].variant}>{r.verdict.verdict.replace('_', ' ')}</Badge> : null}</Cell>
+              <Cell align="right">
+                {r.scenario ? (
+                  r.outcome ? (
+                    <Badge variant={r.outcome.ok ? 'success' : 'warning'}>{r.outcome.ok ? 'As expected' : 'Not this time'}</Badge>
+                  ) : null
+                ) : r.verdict ? (
+                  <Badge variant={VERDICT[r.verdict.verdict].variant}>{r.verdict.verdict.replace('_', ' ')}</Badge>
+                ) : null}
+              </Cell>
               <Cell align="right">
                 <Button size="xs" variant={session === r.session ? 'secondary' : 'ghost'} onClick={() => onSession(r.session)}>
                   {session === r.session ? 'Viewing' : 'View'}
@@ -176,7 +216,7 @@ export function ReportView({ className }: { className?: string }) {
     >
       <p className="border-t border-border px-5 py-3 text-small text-muted-foreground sm:px-6">
         {data.verdict.message} Sharpe difference {num(data.verdict.sharpe_diff)} (95% interval {ci[0] == null ? 'n/a' : `${num(ci[0])} to ${num(ci[1])}`}
-        ). The LLM brain is excluded on purpose: replaying it over the past would measure its memory, not its judgement.
+        ). The AI is left out on purpose: replaying it over the past would measure its memory, not its judgement.
       </p>
       <div className="px-2 pb-3 sm:px-4">
         <ResponsiveContainer width="100%" height={220}>

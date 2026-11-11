@@ -7,7 +7,9 @@ import { Segmented } from '@/components/kit/Segmented';
 import { SkeletonRows } from '@/components/kit/Skeleton';
 import { Section } from '@/components/kit/Surface';
 import { trader } from '@/lib/api';
-import type { JournalEntry, JournalKind } from '@/lib/types';
+import { CitationChip } from '@/components/MemoPanel';
+import { ratingLabel } from '@/lib/format';
+import type { DeskReview, JournalEntry, JournalKind } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { TRADER_KEY, shortTime } from './useTrader';
 
@@ -19,7 +21,7 @@ const KIND: Record<JournalKind, { label: string; variant: Variant }> = {
   stop: { label: 'Stop-loss', variant: 'warning' },
   blocked: { label: 'Blocked', variant: 'destructive' },
   proposal: { label: 'Proposal', variant: 'warning' },
-  tournament: { label: 'Tournament', variant: 'neutral' },
+  tournament: { label: 'Strategy check', variant: 'neutral' },
   halt: { label: 'Halt', variant: 'destructive' },
   kill: { label: 'Kill switch', variant: 'destructive' },
   resume: { label: 'Resumed', variant: 'default' },
@@ -27,7 +29,7 @@ const KIND: Record<JournalKind, { label: string; variant: Variant }> = {
   note: { label: 'Note', variant: 'neutral' },
   contract: { label: 'Contract graded', variant: 'default' },
   shadow: { label: 'Shadow trade', variant: 'neutral' },
-  veto: { label: 'LLM veto', variant: 'warning' },
+  veto: { label: 'Vetoed', variant: 'warning' },
   flag: { label: 'Flagged', variant: 'destructive' },
 };
 
@@ -37,6 +39,7 @@ const GUARDRAILS: JournalKind[] = ['blocked', 'halt', 'kill', 'resume', 'veto', 
 
 function Row({ e }: { e: JournalEntry }) {
   const k = KIND[e.kind] ?? KIND.note;
+  const desk = e.facts.desk as DeskReview | undefined;
   return (
     <li className="px-5 py-3 sm:px-6">
       <div className="flex flex-wrap items-center gap-2">
@@ -48,6 +51,14 @@ function Row({ e }: { e: JournalEntry }) {
         </span>
       </div>
       <p className="mt-1.5 max-w-[80ch] text-small leading-relaxed">{e.text}</p>
+      {desk?.rating && (
+        <p className="mt-1.5 text-caption text-muted-foreground">
+          Desk review: {ratingLabel(desk.rating)}, conviction {desk.conviction?.toFixed(2) ?? 'n/a'}.{desk.evidence?.length ? ' Evidence:' : ''}
+          {(desk.evidence ?? []).map(id => (
+            <CitationChip key={id} id={id} result={{ evidence: desk.sources ?? {} }} />
+          ))}
+        </p>
+      )}
       {Object.keys(e.facts).length > 0 && (
         <details className="mt-1">
           <summary className="w-fit cursor-pointer text-caption text-muted-foreground hover:text-foreground">Facts behind this entry</summary>

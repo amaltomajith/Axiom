@@ -8,6 +8,21 @@ from .risk import RULE_NAMES
 from .strategies import DESCRIPTIONS
 from .tournament import Ranking
 
+# Plain names for the strategies. The ids stay in each entry's facts.
+LABELS = {
+    "sma_cross": "the moving-average trend strategy",
+    "macd_trend": "the momentum strategy",
+    "rsi_reversion": "the oversold-bounce strategy",
+    "donchian_breakout": "the breakout strategy",
+    "bollinger_reversion": "the dip-buying strategy",
+}
+
+
+def label(strategy: str | None) -> str:
+    if not strategy:
+        return "no strategy"
+    return LABELS.get(strategy, strategy.replace("_", " "))
+
 
 def money(x: float | None) -> str:
     return "n/a" if x is None else f"${x:,.2f}"
@@ -23,30 +38,29 @@ def pct(x: float | None, digits: int = 2) -> str:
 
 def entry(intent: OrderIntent, v: RiskVerdict, dec: Decision, equity: float) -> str:
     who = (
-        "The LLM brain"
+        "The AI"
         if intent.source == "llm"
         else "The trading desk"
         if dec.source == "desk"
         else "A human"
         if intent.source == "human"
-        else "The rule brain"
+        else "The rules"
     )
-    strat = intent.strategy or "an unnamed strategy"
-    desc = DESCRIPTIONS.get(strat, "")
-    conf = f" Stated confidence that it ends in profit: {intent.confidence:.0%}." if intent.confidence else ""
+    desc = DESCRIPTIONS.get(intent.strategy or "", "")
+    conf = f" Its stated chance of ending in profit: {intent.confidence:.0%}." if intent.confidence else ""
     plan = ""
     if dec.expected_move_pct is not None and dec.horizon_bars:
-        plan = f" Contract: expects about {pct(dec.expected_move_pct)} within {dec.horizon_bars} bars, or it exits."
+        plan = f" The plan: about {pct(dec.expected_move_pct)} within {dec.horizon_bars} bars, or it sells."
     return (
         f"Bought {qty(v.qty)} {intent.symbol} at about {money(v.price)} ({money(v.notional)}). "
-        f"{who} picked {strat}{f' ({desc})' if desc else ''}. Why: {dec.reason} "
+        f"{who} chose {label(intent.strategy)}{f' ({desc})' if desc else ''}. Why: {dec.reason} "
         f"The stop-loss sits at {money(intent.stop_price)}; if it is hit the loss is about {money(v.risk_amount)}, "
-        f"{v.risk_amount / equity:.2%} of equity. The risk kernel sized this trade, not the brain.{conf}{plan}"
+        f"{v.risk_amount / equity:.2%} of the account. The risk rules set the size, not the AI.{conf}{plan}"
     )
 
 
 def veto(dec: Decision) -> str:
-    return f"Did not buy {dec.symbol}. {dec.reason.rstrip('.')}. The rule brain alone would have entered."
+    return f"Did not buy {dec.symbol}. {dec.reason.rstrip('.')}. The rules alone would have bought."
 
 
 def reviewed(dec: Decision) -> str:
@@ -76,16 +90,14 @@ def blocked(intent: OrderIntent, v: RiskVerdict, *, approved_by_human: bool = Fa
     rule = v.blocked_by or "?"
     name = RULE_NAMES.get(rule, rule)
     lead = "A human approved a" if approved_by_human else "Wanted to buy"
-    what = (
-        f"{lead} {intent.symbol}{' entry' if approved_by_human else ''} ({intent.strategy or 'no strategy'})"
-    )
-    return f"{what}, but the risk kernel blocked it. Rule {rule}, {name}: {v.reason.split(': ', 1)[-1]} No order was sent."
+    what = f"{lead} {intent.symbol}{' entry' if approved_by_human else ''} ({label(intent.strategy)})"
+    return f"{what}, but the risk rules blocked it. Rule {rule}, {name}: {v.reason.split(': ', 1)[-1]} No order was sent."
 
 
 def proposal(intent: OrderIntent, v: RiskVerdict) -> str:
     return (
         f"Proposed buying {qty(v.qty)} {intent.symbol} at about {money(v.price)} with a stop at "
-        f"{money(intent.stop_price)} ({intent.strategy}). Supervised mode: waiting for a human to approve."
+        f"{money(intent.stop_price)}, using {label(intent.strategy)}. Waiting for a human to approve it."
     )
 
 
@@ -94,13 +106,13 @@ def tournament(r: Ranking) -> str:
     regime = f"{r.regime.get('trend')}, {r.regime.get('volatility')} volatility"
     if best is None:
         return (
-            f"Tournament for {r.symbol}: no strategy qualified on the trailing window ({regime}). "
-            f"Buy-and-hold Sharpe was {r.benchmark_sharpe:.2f}. Staying in cash until one does."
+            f"Strategy check for {r.symbol}: none did well enough over the past year to be trusted "
+            f"(market: {regime}). Simply holding scored {r.benchmark_sharpe:.2f}. Staying in cash until one does."
         )
     rest = ", ".join(f"{s.strategy} {s.sharpe:.2f}" for s in r.standings[1:4])
     return (
-        f"Tournament for {r.symbol}: {best.strategy} now leads with Sharpe {best.sharpe:.2f} "
-        f"(buy-and-hold {r.benchmark_sharpe:.2f}; others: {rest}). Market regime: {regime}."
+        f"Strategy check for {r.symbol}: {label(best.strategy)} now leads, scoring {best.sharpe:.2f} for "
+        f"return against risk (simply holding scored {r.benchmark_sharpe:.2f}; others: {rest}). Market: {regime}."
     )
 
 
