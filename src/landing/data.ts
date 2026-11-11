@@ -41,6 +41,7 @@ export const snapshot = raw as unknown as Snapshot;
 
 export const REPO = 'https://github.com/amaltomajith/Axiom';
 export const EVAL_REPORT = `${REPO}/blob/main/docs/eval-report.md`;
+export const BACKTEST_DOC = `${REPO}/blob/main/docs/backtest-report.md`;
 
 /** The 11 MCP tools the server exposes (kept in sync with backend/axiom/mcp_server/server.py by a test). */
 export const MCP_TOOLS = [
@@ -56,3 +57,24 @@ export const MCP_TOOLS = [
   'size_position',
   'get_peer_comparison',
 ] as const;
+
+/** Sections the nav and footer link to. */
+export const NAV_LINKS = [
+  { href: '#how', label: 'How it works' },
+  { href: '#modes', label: 'Modes' },
+  { href: '#honest', label: 'Results' },
+  { href: '#faq', label: 'Questions' },
+] as const;
+
+/** Questions and answers for the landing FAQ. */
+export const FAQ = [
+  { q: 'Is any real money involved?', a: 'No. Axiom only trades pretend money in a practice account, and there is no setting that connects it to real funds.' },
+  { q: 'What does it trade?', a: 'Bitcoin and Ethereum, which trade around the clock. It can also follow a few well-known US stocks and funds.' },
+  {
+    q: 'Will it make me money?',
+    a: 'We cannot promise that, and you should be wary of anyone who does. In long practice runs it lost less than simply holding in the bad stretches and made much less overall. That is why it starts on paper.',
+  },
+  { q: 'Do I have to pay for the AI?', a: 'No. It uses free AI models, or one running on your own computer. If none are available, it falls back to simple, fixed rules.' },
+  { q: 'How do I stop it?', a: 'Press the red stop button at the top of the screen. Every open order is cancelled and every position is closed straight away.' },
+  { q: 'Can I see how it made a decision?', a: 'Always. Every trade, and every trade it decided against, has a short note in plain language that you can read at any time.' },
+];

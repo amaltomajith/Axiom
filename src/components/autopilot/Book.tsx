@@ -8,6 +8,7 @@ import { trader } from '@/lib/api';
 import { money, num, timeAgo } from '@/lib/format';
 import type { PendingEntry } from '@/lib/types';
 import { cn } from '@/lib/utils';
+import { strategyLabel } from './labels';
 import { TRADER_KEY, useTraderAction } from './useTrader';
 
 const qty = (q: number) => (Number.isInteger(q) ? String(q) : q.toFixed(6).replace(/0+$/, '').replace(/\.$/, ''));
@@ -38,7 +39,7 @@ export function Positions() {
             <ListRow key={p.symbol}>
               <Cell>
                 <span className="font-mono font-medium">{p.symbol}</span>
-                <span className="block text-caption text-muted-foreground">{p.strategy ?? 'no strategy'}</span>
+                <span className="block text-caption text-muted-foreground">{strategyLabel(p.strategy)}</span>
               </Cell>
               <Cell num align="right" hideBelow="md">
                 {qty(p.qty)}
@@ -78,7 +79,7 @@ function Proposal({ p }: { p: PendingEntry }) {
         <span className="tnum">{money(p.verdict.risk_amount)}</span>.
       </p>
       <p className="mt-1 text-caption text-muted-foreground">
-        {p.intent.strategy}
+        {strategyLabel(p.intent.strategy)}
         {p.intent.confidence != null ? `, stated confidence ${num(p.intent.confidence * 100, 0)}%` : ''}, proposed {timeAgo(p.created_at)}. {p.decision.reason}
       </p>
       <div className="mt-2.5 flex gap-2">

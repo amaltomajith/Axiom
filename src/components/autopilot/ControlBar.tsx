@@ -132,10 +132,10 @@ export function ControlBar({ status, onRedteam }: { status: TraderStatus; onRedt
     <section className="surface overflow-hidden" aria-label="Autopilot controls">
       <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="success" className="font-mono">
+          <Badge variant="solid" className="font-mono">
             PAPER
           </Badge>
-          <Badge variant={status.killed ? 'destructive' : status.halted ? 'warning' : alive ? 'success' : 'neutral'}>
+          <Badge variant={status.killed ? 'destructive' : status.halted ? 'warning' : alive ? 'default' : 'neutral'}>
             {status.killed ? 'Killed' : status.halted ? 'Halted' : alive ? 'Running' : status.running ? 'Starting' : 'Stopped'}
           </Badge>
           <span className="text-caption text-muted-foreground">

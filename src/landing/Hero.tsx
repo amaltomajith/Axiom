@@ -1,123 +1,61 @@
-import { Link } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowRight } from 'lucide-react';
-import { Line, LineChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { useChartTheme } from '@/hooks/useChartTheme';
-import { frac, num, shortDate } from '@/lib/format';
 import { spring, useReducedMotion } from '@/lib/motion';
-import report from '../../docs/backtest-report.json';
-import { REPO } from './data';
+import { Globe } from './Globe';
+import { Chip, GhostLink, StartLink } from './ui';
 
-const BACKTEST_DOC = `${REPO}/blob/main/docs/backtest-report.md`;
-
-/** The real Time Machine report (docs/backtest-report.json, written by `python -m axiom.trading backtest`). */
-function ReportPreview() {
-  const t = useChartTheme();
-  const { agent, benchmark, verdict, contracts, risk_events: risk, period, universe } = report;
-  const blocked = Object.values(risk.blocked as Record<string, number>).reduce((a, b) => a + b, 0);
-  const rows: { label: string; a: string; b: string }[] = [
-    { label: 'Return', a: frac(agent.total_return, 1, true), b: frac(benchmark.total_return, 1, true) },
-    { label: 'Sharpe', a: num(agent.sharpe, 2), b: num(benchmark.sharpe, 2) },
-    { label: 'Worst drawdown', a: frac(agent.max_drawdown, 1), b: frac(benchmark.max_drawdown, 1) },
-  ];
-  return (
-    <div className="surface overflow-hidden shadow-md">
-      <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-1 pt-5 sm:px-6">
-        <div>
-          <p className="text-small font-medium">Time Machine backtest</p>
-          <p className="text-caption text-muted-foreground">
-            {universe.length} symbols, {period.years} years, the live engine replayed bar by bar
-          </p>
-        </div>
-        <Badge variant={verdict.verdict === 'edge_detected' ? 'success' : 'warning'} className="font-mono">
-          {verdict.verdict}
-        </Badge>
-      </div>
-      <div className="h-[200px] px-2 pt-2 sm:px-3" aria-hidden>
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={report.curve} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-            <XAxis dataKey="date" hide />
-            <YAxis hide domain={['auto', 'auto']} />
-            <Line dataKey="benchmark" stroke={t.benchmark} strokeWidth={1.5} dot={false} isAnimationActive={false} />
-            <Line dataKey="agent" stroke={t.accent} strokeWidth={2.25} dot={false} isAnimationActive={false} />
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-      <div className="border-t border-border px-5 py-4 sm:px-6">
-        <table className="w-full text-small">
-          <thead>
-            <tr className="text-caption text-muted-foreground">
-              <th className="pb-1.5 text-left font-normal" scope="col">
-                <span className="sr-only">Metric</span>
-              </th>
-              <th className="pb-1.5 text-right font-normal text-primary" scope="col">
-                Autopilot
-              </th>
-              <th className="pb-1.5 text-right font-normal" scope="col">
-                Buy and hold
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(r => (
-              <tr key={r.label}>
-                <th className="py-1 text-left font-normal text-muted-foreground" scope="row">
-                  {r.label}
-                </th>
-                <td className="tnum py-1 text-right font-medium">{r.a}</td>
-                <td className="tnum py-1 text-right">{r.b}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="tnum mt-3 text-caption text-muted-foreground">
-          {contracts.n} trade contracts graded, Brier {num(contracts.brier, 3)}. {risk.stop_outs} stop-outs, {blocked} entries blocked by the risk kernel, {risk.daily_loss_halts} daily loss halts.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/** Hero: headline, one sentence, two actions, one real preview. Nothing else competes with them. */
+/**
+ * Centred, because the promise is the design here: a chip, one headline, one sentence, two actions.
+ * Below it the globe rises behind the real cockpit, framed with a lit top edge.
+ */
 export function Hero() {
   const reduce = useReducedMotion();
   const item = (delay: number) =>
     reduce
       ? { initial: { opacity: 0 }, animate: { opacity: 1 }, transition: { duration: 0.2, delay } }
-      : { initial: { opacity: 0, y: 16 }, animate: { opacity: 1, y: 0 }, transition: { ...spring.default, delay } };
+      : { initial: { opacity: 0, y: 18 }, animate: { opacity: 1, y: 0 }, transition: { ...spring.default, delay } };
 
   return (
-    <section className="mx-auto grid min-h-[min(calc(100dvh-4rem),44rem)] max-w-[1200px] items-center gap-12 px-4 pb-16 pt-12 sm:px-6 lg:grid-cols-12 lg:gap-10">
-      <div className="lg:col-span-5">
-        <motion.h1 {...item(0)} className="text-display">
-          A trading agent that earns autonomy.
+    <section id="top" className="relative isolate overflow-hidden pt-32 sm:pt-40">
+      <div aria-hidden className="absolute inset-x-0 top-0 -z-10 h-[720px] bg-[radial-gradient(60%_55%_at_50%_0%,hsl(var(--primary)/0.22),transparent_70%)]" />
+
+      <div className="mx-auto flex max-w-[880px] flex-col items-center px-4 text-center">
+        <motion.div {...item(0)}>
+          <Chip>Practice money only</Chip>
+        </motion.div>
+        <motion.h1 {...item(0.06)} className="lp-silver mt-6 pb-2 text-[clamp(2.6rem,7vw,5rem)] font-semibold leading-[1.02] tracking-[-0.04em]">
+          A trading partner that thinks first.
         </motion.h1>
-        <motion.p {...item(0.08)} className="mt-5 max-w-[34ch] text-h3 font-normal leading-snug text-muted-foreground">
-          It trades paper money inside risk rules it cannot override, states its odds before every trade, and gets graded.
+        <motion.p {...item(0.12)} className="mt-5 max-w-[34rem] text-[1.0625rem] leading-relaxed text-muted-foreground sm:text-lg">
+          Axiom watches the markets for you, explains every move in plain words, and never risks more than you allow.
         </motion.p>
-        <motion.div {...item(0.16)} className="mt-8 flex flex-wrap items-center gap-3">
-          <Button asChild size="lg">
-            <Link to="/app">
-              Open terminal <ArrowRight />
-            </Link>
-          </Button>
-          <Button asChild size="lg" variant="secondary">
-            <a href={BACKTEST_DOC} target="_blank" rel="noreferrer">
-              Read the backtest
-            </a>
-          </Button>
+        <motion.div {...item(0.18)} className="mt-9 flex flex-wrap items-center justify-center gap-3">
+          <StartLink />
+          <GhostLink href="#how">See how it works</GhostLink>
         </motion.div>
       </div>
-      <motion.div {...item(0.2)} className="lg:col-span-7">
-        <ReportPreview />
-        <p className="mt-3 px-1 text-caption text-muted-foreground">
-          The real report, generated {shortDate(report.generated_at)}. {verdict(report.verdict.message)} It is shown here anyway.
-        </p>
-      </motion.div>
+
+      <div className="relative mt-16 sm:mt-20">
+        <div aria-hidden className="absolute left-1/2 top-0 aspect-square w-[min(1040px,140vw)] -translate-x-1/2">
+          <Globe />
+        </div>
+        <motion.div
+          initial={reduce ? { opacity: 0 } : { opacity: 0, y: 60 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={reduce ? { duration: 0.3 } : { type: 'spring', bounce: 0, duration: 1.1, delay: 0.3 }}
+          className="relative mx-auto max-w-[1200px] px-3 pt-[min(330px,46vw)] sm:px-8"
+        >
+          <div className="lp-lit overflow-hidden rounded-[22px] bg-[hsl(222_30%_4%)] p-1.5 sm:rounded-[28px] sm:p-2.5">
+            <img
+              src="/landing/cockpit.jpg"
+              width={1600}
+              height={900}
+              alt="The Axiom cockpit: practice balance, a big red stop button, how much freedom it has, today's limits, and its results against simply holding"
+              className="block h-auto w-full rounded-[16px] sm:rounded-[20px]"
+            />
+          </div>
+          <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-background to-transparent" />
+        </motion.div>
+      </div>
     </section>
   );
 }
-
-const verdict = (m: string) => (m.endsWith('.') ? m : `${m}.`);

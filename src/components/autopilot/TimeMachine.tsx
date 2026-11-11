@@ -13,8 +13,8 @@ import { frac, money, num } from '@/lib/format';
 import type { ReportMetrics, Verdict } from '@/lib/types';
 import { TRADER_KEY, shortDate, useTraderAction } from './useTrader';
 
-const VERDICT: Record<Verdict, { title: string; variant: 'success' | 'warning' | 'neutral' }> = {
-  edge_detected: { title: 'Edge detected', variant: 'success' },
+const VERDICT: Record<Verdict, { title: string; variant: 'default' | 'warning' | 'neutral' }> = {
+  edge_detected: { title: 'Edge detected', variant: 'default' },
   unproven: { title: 'Unproven', variant: 'warning' },
   no_edge: { title: 'No edge over buy-and-hold', variant: 'neutral' },
   insufficient_data: { title: 'Not enough data to judge', variant: 'neutral' },

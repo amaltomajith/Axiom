@@ -1,38 +1,30 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
-import { MCP_TOOLS, snapshot } from '@/landing/data';
-import { Evals } from '@/landing/Evals';
-import { Footer } from '@/landing/Footer';
+import { FAQ, MCP_TOOLS, snapshot } from '@/landing/data';
+import { Features } from '@/landing/Features';
+import { FinalCta, Footer } from '@/landing/Footer';
 import { Hero } from '@/landing/Hero';
-import { LogoWall } from '@/landing/LogoWall';
-import { McpSection } from '@/landing/McpSection';
+import { Honest } from '@/landing/Honest';
+import { Modes } from '@/landing/Modes';
 import { Nav } from '@/landing/Nav';
-import { StackSection } from '@/landing/StackSection';
-import { Walkthrough } from '@/landing/Walkthrough';
-import report from '../../docs/backtest-report.json';
+import Landing from '@/pages/Landing';
 
 const wrap = (ui: React.ReactElement) => render(<MemoryRouter>{ui}</MemoryRouter>);
+const dir = resolve(__dirname, '../landing');
+const sources = readdirSync(dir)
+  .filter(f => f.endsWith('.tsx'))
+  .map(f => readFileSync(resolve(dir, f), 'utf-8'));
+const page = readFileSync(resolve(__dirname, '../pages/Landing.tsx'), 'utf-8');
 
 describe('landing data is real, not typed in', () => {
-  it('has a complete recorded run with prices, cone, trace and cited evidence', () => {
+  it('has a complete recorded research run with cited evidence', () => {
     expect(snapshot.bars.length).toBeGreaterThanOrEqual(60);
-    expect(snapshot.cone.length).toBe(14);
-    expect(snapshot.events.length).toBeGreaterThan(20);
     const ids = Object.keys(snapshot.result.evidence);
     const claims = [...snapshot.result.memo.bull_case, ...snapshot.result.memo.bear_case];
     for (const c of claims) for (const id of c.evidence) expect(ids).toContain(id); // every chip resolves
-    expect(snapshot.backtest.verdict).toMatch(/^(no_edge|unproven|edge_detected|insufficient_data)$/);
-  });
-
-  it('carries a real, unsent approval payload and honest eval numbers', () => {
-    expect(snapshot.approval.plan?.steps.map(s => s.kind)).toContain('sheet_row');
-    expect(snapshot.approval.plan?.executor).toBe('dry_run');
-    expect(snapshot.evals.passed).toMatch(/^\d+\/\d+$/);
-    expect(snapshot.evals.control_obeyed).toMatch(/^\d+\/\d+$/);
-    expect(snapshot.scorecard.sample_note).toMatch(/need/i);
   });
 
   it('lists exactly the MCP tools the backend server registers', () => {
@@ -41,96 +33,99 @@ describe('landing data is real, not typed in', () => {
     expect([...MCP_TOOLS].sort()).toEqual(registered);
     expect(registered).toHaveLength(11);
   });
+
+  it('uses real product screenshots that exist', () => {
+    for (const img of ['cockpit.jpg', 'journal.jpg']) expect(() => readFileSync(resolve(__dirname, `../../public/landing/${img}`))).not.toThrow();
+  });
 });
 
 describe('landing sections', () => {
-  it('hero shows the real backtest report, verdict included, against buy and hold', () => {
+  it('hero has one headline and the primary action', () => {
     wrap(<Hero />);
-    expect(screen.getByText(report.verdict.verdict)).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Autopilot' })).toBeInTheDocument();
-    expect(screen.getByRole('columnheader', { name: 'Buy and hold' })).toBeInTheDocument();
-    expect(screen.getByText(new RegExp(`${report.contracts.n} trade contracts graded`))).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open terminal' })).toHaveAttribute('href', '/app');
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('A trading partner that thinks first.');
+    expect(screen.getByRole('link', { name: /Start on paper/ })).toHaveAttribute('href', '/app');
+    expect(screen.getByRole('img', { name: /cockpit/ })).toHaveAttribute('src', '/landing/cockpit.jpg');
   });
 
-  it('nav has one primary call to action and labelled landmarks', () => {
+  it('nav links only to sections that exist on the page', () => {
     wrap(<Nav />);
-    expect(screen.getByRole('link', { name: 'Open terminal' })).toHaveAttribute('href', '/app');
-    expect(screen.getByRole('navigation', { name: 'Page' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /switch to (dark|light) mode/i })).toBeInTheDocument();
+    const nav = screen.getByRole('navigation', { name: 'Page' });
+    const ids = within(nav)
+      .getAllByRole('link')
+      .map(a => a.getAttribute('href')?.slice(1));
+    expect(ids.length).toBeGreaterThanOrEqual(3);
+    for (const id of ids) expect(sources.join('\n')).toContain(`id="${id}"`);
   });
 
-  it('logo wall shows logos only, each named for screen readers, with no category labels', () => {
-    wrap(<LogoWall />);
-    const list = screen.getByRole('list');
-    const items = within(list).getAllByRole('listitem');
-    expect(items.length).toBeGreaterThanOrEqual(6);
-    for (const li of items) expect(li.querySelector('svg')).not.toBeNull();
-    expect(list.textContent?.replace(/\s/g, '').length).toBeLessThan(200); // only svg <title>s, no printed labels
-    expect(screen.queryByRole('img', { name: /slack|groq/i })).toBeNull(); // not in simple-icons: omitted, not faked
+  it('every link into the app uses the same words', () => {
+    wrap(<Landing />);
+    const intoApp = screen.getAllByRole('link').filter(a => a.getAttribute('href') === '/app');
+    expect(intoApp.length).toBeGreaterThanOrEqual(3);
+    for (const a of intoApp) expect(a).toHaveTextContent('Start on paper');
   });
 
-  it('walkthrough renders all five steps with real visuals when motion is allowed to stack', () => {
-    wrap(<Walkthrough />);
-    for (const step of ['Gather', 'Debate', 'Guard', 'Approve', 'Score']) expect(screen.getAllByText(step).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Recorded run/).length).toBeGreaterThan(0);
+  it('feature tiles each show a picture of the behaviour', () => {
+    wrap(<Features />);
+    for (const t of ['It tells you why', 'It knows when to wait', 'It always has a way out', 'You stay in charge']) expect(screen.getByRole('article', { name: t })).toBeInTheDocument();
   });
 
-  it('evals section shows the real figures and the judge caveat', () => {
-    wrap(<Evals />);
-    expect(screen.getByText(/scenarios passed/)).toBeInTheDocument();
-    expect(screen.getByText(/noisy signal/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Read the full report/ })).toHaveAttribute('href', expect.stringContaining('eval-report.md'));
-    expect(screen.getByText('earned_edge')).toBeInTheDocument();
+  it('modes match the three autonomy levels, with the supervised one marked as the start', () => {
+    wrap(<Modes />);
+    for (const m of ['Watch only', 'Ask me first', 'On its own']) expect(screen.getByRole('heading', { name: m })).toBeInTheDocument();
+    const autonomy = readFileSync(resolve(__dirname, '../../backend/axiom/trading/autonomy.py'), 'utf-8');
+    for (const level of ['SHADOW', 'SUPERVISED', 'AUTONOMOUS']) expect(autonomy).toContain(level);
+    expect(screen.getByText('Recommended start')).toBeInTheDocument();
   });
 
-  it('mcp section lists every tool and gives copyable setup for both clients', () => {
-    wrap(<McpSection />);
-    for (const t of MCP_TOOLS) expect(screen.getByText(t)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy Claude Code command' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Copy Claude Desktop configuration' })).toBeInTheDocument();
+  it('is honest that it trailed simply holding, and links the report', () => {
+    wrap(<Honest />);
+    expect(screen.getByText(/made far less when they rose/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /practice report/ })).toHaveAttribute('href', expect.stringContaining('backtest-report.md'));
   });
 
-  it('stack section states its limits plainly', () => {
-    wrap(<StackSection />);
-    expect(screen.getByRole('list', { name: 'Model fallback order' })).toBeInTheDocument();
-    expect(screen.getByText(/not been run against a live account/)).toBeInTheDocument();
+  it('answers the real-money question first', () => {
+    expect(FAQ[0].q).toMatch(/real money/);
+    expect(FAQ[0].a).toMatch(/^No\./);
   });
 
-  it('footer carries the disclaimer and no version strings', () => {
-    wrap(<Footer />);
+  it('closing section and footer carry the action and the disclaimer, no version strings', () => {
+    wrap(
+      <>
+        <FinalCta />
+        <Footer />
+      </>,
+    );
+    expect(screen.getByRole('link', { name: /Start on paper/ })).toHaveAttribute('href', '/app');
     expect(screen.getByText(/not financial advice/i)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/\bv\d+\.\d+/);
   });
 });
 
 describe('landing copy rules', () => {
-  const sources = ['Hero', 'Nav', 'LogoWall', 'Walkthrough', 'Honest', 'Evals', 'McpSection', 'StackSection', 'Footer'].map(n => readFileSync(resolve(__dirname, `../landing/${n}.tsx`), 'utf-8'));
+  const all = sources.join('\n') + page;
 
-  it('the hero follows the stack rules: a short headline and a sub-20-word sentence', () => {
-    const hero = readFileSync(resolve(__dirname, '../landing/Hero.tsx'), 'utf-8');
+  it('the hero follows the stack rules: a short headline and sub-20-word sentences', () => {
+    const hero = readFileSync(resolve(dir, 'Hero.tsx'), 'utf-8');
     const h1 = hero.match(/<motion\.h1[^>]*>\s*([^<]+?)\s*<\/motion\.h1>/)?.[1] ?? '';
-    const sub = hero.match(/<motion\.p[^>]*>\s*([^<]+?)\s*<\/motion\.p>/)?.[1] ?? '';
+    const subs = [...hero.matchAll(/<motion\.p[^>]*>\s*([^<]+?)\s*<\/motion\.p>/g)].map(m => m[1]);
     expect(h1.split(/\s+/).length).toBeLessThanOrEqual(6);
-    expect(sub.split(/\s+/).length).toBeLessThanOrEqual(20);
+    expect(subs.length).toBeGreaterThan(0);
+    for (const sub of subs) expect(sub.split(/\s+/).length).toBeLessThanOrEqual(20);
   });
 
-  it('uses one label for the primary intent everywhere', () => {
-    const all = sources.join('\n') + readFileSync(resolve(__dirname, '../pages/Landing.tsx'), 'utf-8');
-    expect((all.match(/Open terminal/g) ?? []).length).toBeGreaterThanOrEqual(3);
+  it('speaks plainly: no trading jargon or internal names in visible copy', () => {
+    const visible = [...all.matchAll(/>([^<>{}]+)</g)].map(m => m[1]).join(' ');
+    expect(visible).not.toMatch(/\b(kernel|Brier|Sharpe|walk-forward|tournament|LLM|drawdown|calibration|R\d{1,2})\b/i);
+  });
+
+  it('never uses banned call-to-action labels, filler verbs, scroll cues or fake versions', () => {
     for (const dup of ['Get started', 'Start now', 'Try it free', 'Launch app', 'Sign up']) expect(all).not.toContain(dup);
-  });
-
-  it('has no scroll cues, fake version labels, banned filler verbs or section numbering', () => {
-    const all = sources.join('\n');
-    expect(all).not.toMatch(/scroll to|Scroll down|↓ scroll/i);
-    expect(all).not.toMatch(/\bBETA\b|\bv0\.\d|invite-only|early access/i);
     expect(all).not.toMatch(/\b(elevate|seamless|unleash|next-gen|revolutionize|supercharge)\b/i);
-    expect(all).not.toMatch(/\b0\d\s*\/\s*0?\d|\bStep \d|\bStage \d|\bPhase \d/);
+    expect(all).not.toMatch(/scroll to|Scroll down/i);
+    expect(all).not.toMatch(/\bBETA\b|\bv0\.\d|invite-only|early access/i);
   });
 
   it('never uses a fixed 100vh hero or scroll listeners', () => {
-    const all = sources.join('\n');
     expect(all).not.toMatch(/h-screen|100vh/);
     expect(all).not.toMatch(/addEventListener\(\s*['"]scroll/);
   });

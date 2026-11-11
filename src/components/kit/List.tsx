@@ -9,20 +9,22 @@ import { cn } from '@/lib/utils';
 interface ListProps extends React.HTMLAttributes<HTMLDivElement> {
   cols: string;
   headers?: { label: string; align?: 'left' | 'right'; hideBelow?: 'sm' | 'md' }[];
+  /** Keep the column headers visible when the list scrolls inside its own container. */
+  stickyHeader?: boolean;
 }
 
 const ListContext = React.createContext<string>('');
 
 const HIDE = { sm: 'hidden sm:block', md: 'hidden md:block' } as const;
 
-export function List({ cols, headers, className, children, ...props }: ListProps) {
+export function List({ cols, headers, className, stickyHeader, children, ...props }: ListProps) {
   return (
     <ListContext.Provider value={cols}>
       <div role="table" className={cn('text-small', className)} {...props}>
         {headers && (
           <div
             role="row"
-            className={cn('grid items-center gap-x-4 border-y border-border bg-muted/50 px-5 py-2 text-caption text-muted-foreground sm:px-6', cols)}
+            className={cn('grid items-center gap-x-4 border-y border-border px-5 py-2 text-caption text-muted-foreground sm:px-6', stickyHeader ? 'sticky top-0 z-[1] bg-muted' : 'bg-muted/50', cols)}
           >
             {headers.map(h => (
               <div key={h.label} role="columnheader" className={cn(h.align === 'right' && 'text-right', h.hideBelow && HIDE[h.hideBelow])}>

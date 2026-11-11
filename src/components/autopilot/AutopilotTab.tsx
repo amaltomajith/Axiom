@@ -19,7 +19,7 @@ function RedteamCard({ r, onClose }: { r: RedteamResult; onClose: () => void }) 
     <section className="surface overflow-hidden" aria-label="Red team result" role="status">
       <header className="flex items-start justify-between gap-3 px-5 pb-2 pt-4 sm:px-6">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="h-5 w-5 text-success" />
+          <ShieldCheck className="h-5 w-5 text-primary" />
           <h2 className="text-h3">{r.approved ? 'The kernel let it through' : 'Both attacks were stopped'}</h2>
         </div>
         <Button size="icon-sm" variant="ghost" onClick={onClose} aria-label="Dismiss">
@@ -85,18 +85,29 @@ export function AutopilotTab() {
         </div>
       )}
       <div className="grid items-start gap-6 lg:grid-cols-12">
-        <div className="space-y-6 lg:col-span-7">
+        <div className={live ? 'lg:col-span-8' : 'lg:col-span-12'}>
           <EquityChart session={session} />
-          <JournalFeed session={session} />
         </div>
-        <div className="space-y-6 lg:col-span-5">
-          {live && <Positions />}
-          <Contracts session={session} />
+        {live && (
+          <div className="lg:col-span-4">
+            <Positions />
+          </div>
+        )}
+      </div>
+      {/* One row, one height: both lists scroll inside their own card instead of leaving a gap beside the shorter one. */}
+      <div className="grid gap-6 lg:grid-cols-12">
+        <JournalFeed session={session} className="lg:col-span-7 lg:h-[760px]" />
+        <Contracts session={session} className="lg:col-span-5 lg:h-[760px]" />
+      </div>
+      <div className="grid items-start gap-6 lg:grid-cols-12">
+        <div className="lg:col-span-7">
           <TimeMachine session={session} onSession={setSession} />
+        </div>
+        <div className="lg:col-span-5">
           <ReportView />
-          <p className="px-1 text-caption text-muted-foreground">Paper trading only: no setting enables real money. Live updates {connected ? 'are streaming' : 'fall back to polling'}.</p>
         </div>
       </div>
+      <p className="px-1 text-caption text-muted-foreground">Paper trading only: no setting enables real money. Live updates {connected ? 'are streaming' : 'fall back to polling'}.</p>
     </div>
   );
 }

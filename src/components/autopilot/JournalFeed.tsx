@@ -8,9 +8,10 @@ import { SkeletonRows } from '@/components/kit/Skeleton';
 import { Section } from '@/components/kit/Surface';
 import { trader } from '@/lib/api';
 import type { JournalEntry, JournalKind } from '@/lib/types';
+import { cn } from '@/lib/utils';
 import { TRADER_KEY, shortTime } from './useTrader';
 
-type Variant = 'default' | 'neutral' | 'success' | 'warning' | 'destructive' | 'outline';
+type Variant = 'default' | 'solid' | 'neutral' | 'warning' | 'destructive' | 'outline';
 
 const KIND: Record<JournalKind, { label: string; variant: Variant }> = {
   entry: { label: 'Bought', variant: 'default' },
@@ -21,10 +22,10 @@ const KIND: Record<JournalKind, { label: string; variant: Variant }> = {
   tournament: { label: 'Tournament', variant: 'neutral' },
   halt: { label: 'Halt', variant: 'destructive' },
   kill: { label: 'Kill switch', variant: 'destructive' },
-  resume: { label: 'Resumed', variant: 'success' },
+  resume: { label: 'Resumed', variant: 'default' },
   autonomy: { label: 'Autonomy', variant: 'default' },
   note: { label: 'Note', variant: 'neutral' },
-  contract: { label: 'Contract graded', variant: 'success' },
+  contract: { label: 'Contract graded', variant: 'default' },
   shadow: { label: 'Shadow trade', variant: 'neutral' },
   veto: { label: 'LLM veto', variant: 'warning' },
   flag: { label: 'Flagged', variant: 'destructive' },
@@ -58,7 +59,7 @@ function Row({ e }: { e: JournalEntry }) {
 }
 
 /** The plain-language journal, newest first, with the hash-chain check that proves nothing was edited. */
-export function JournalFeed({ session }: { session: string }) {
+export function JournalFeed({ session, className }: { session: string; className?: string }) {
   const [filter, setFilter] = useState<Filter>('all');
   const journal = useQuery({
     queryKey: [TRADER_KEY, 'journal', session],
@@ -75,12 +76,13 @@ export function JournalFeed({ session }: { session: string }) {
 
   return (
     <Section
+      className={cn('flex flex-col', className)}
       title="Journal"
       description="Every decision in plain language, including the trades it did not take"
       actions={
         chain.data &&
         (chain.data.ok ? (
-          <Badge variant="success" title={`Chain head ${chain.data.head ?? ''}`}>
+          <Badge variant="default" title={`Chain head ${chain.data.head ?? ''}`}>
             <Link2 className="h-3.5 w-3.5" /> {chain.data.n} entries, chain intact
           </Badge>
         ) : (
@@ -107,7 +109,7 @@ export function JournalFeed({ session }: { session: string }) {
       ) : rows.length === 0 ? (
         <EmptyState icon={ScrollText} title="Nothing journaled yet" description="Start the Autopilot or run the Time Machine; every decision lands here." />
       ) : (
-        <ol className="max-h-[640px] divide-y divide-border overflow-y-auto border-t border-border">
+        <ol className="max-h-[640px] min-h-0 flex-1 divide-y divide-border overflow-y-auto border-t border-border lg:max-h-none">
           {rows.map(e => (
             <Row key={`${e.session}-${e.seq}`} e={e} />
           ))}

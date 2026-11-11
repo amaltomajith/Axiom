@@ -9,6 +9,8 @@ import { useChartTheme } from '@/hooks/useChartTheme';
 import { trader } from '@/lib/api';
 import { money, num, pct } from '@/lib/format';
 import type { TradeContract } from '@/lib/types';
+import { cn } from '@/lib/utils';
+import { strategyLabel } from './labels';
 import { TRADER_KEY, shortDate, shortTime } from './useTrader';
 
 /** Paper equity against an equal-weight buy-and-hold of the same symbols from the same start. */
@@ -73,7 +75,7 @@ export function EquityChart({ session }: { session: string }) {
 }
 
 const GRADE_VARIANT = {
-  A: 'success',
+  A: 'solid',
   B: 'default',
   C: 'warning',
   D: 'destructive',
@@ -86,9 +88,8 @@ function ContractRow({ c }: { c: TradeContract }) {
       <Cell>
         <span className="font-mono font-medium">{c.symbol}</span>
         {c.shadow && <span className="ml-1.5 text-caption text-muted-foreground">shadow</span>}
-        <span className="block truncate text-caption text-muted-foreground" title={c.thesis ?? ''}>
-          {c.strategy}, {c.source} brain
-          {c.horizon_bars ? `, ${c.horizon_bars} bar horizon` : ''}
+        <span className="block text-caption text-muted-foreground" title={[`${c.strategy}, ${c.source} brain`, c.horizon_bars ? `${c.horizon_bars} bar horizon` : '', c.thesis ?? ''].filter(Boolean).join('. ')}>
+          {strategyLabel(c.strategy)}
         </span>
       </Cell>
       <Cell num align="right">
@@ -106,7 +107,7 @@ function ContractRow({ c }: { c: TradeContract }) {
 }
 
 /** Trade contracts and calibration: did the agent's stated confidence match what happened? */
-export function Contracts({ session }: { session: string }) {
+export function Contracts({ session, className }: { session: string; className?: string }) {
   const t = useChartTheme();
   const contracts = useQuery({
     queryKey: [TRADER_KEY, 'contracts', session],
@@ -130,16 +131,17 @@ export function Contracts({ session }: { session: string }) {
 
   return (
     <Section
+      className={cn('flex flex-col', className)}
       title="Trade contracts and calibration"
       description="Before each entry the agent states its odds, target and exits. Each contract is graded when it closes."
-      actions={all?.brier != null && <Badge variant={all.brier <= 0.25 ? 'success' : 'warning'}>Brier {num(all.brier, 3)}</Badge>}
+      actions={all?.brier != null && <Badge variant={all.brier <= 0.25 ? 'default' : 'warning'}>Brier {num(all.brier, 3)}</Badge>}
     >
       {!all?.n && !rows.length ? (
         <EmptyState icon={FileCheck2} title="No contracts yet" description="The first one opens with the first entry (or the first would-be entry in shadow mode)." className="py-10" />
       ) : (
         <>
           {all && all.n > 0 && (
-            <div className="grid gap-4 border-t border-border px-5 py-4 sm:px-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+            <div className="grid shrink-0 gap-4 border-t border-border px-5 py-4 sm:px-6 md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
               <dl className="grid grid-cols-2 gap-4 self-start">
                 <div>
                   <dt className="text-caption text-muted-foreground">Graded</dt>
@@ -192,8 +194,10 @@ export function Contracts({ session }: { session: string }) {
             </div>
           )}
           {rows.length > 0 && (
+            <div className="max-h-[560px] min-h-0 flex-1 overflow-y-auto lg:max-h-none">
             <List
-              cols="grid-cols-[1fr_4.5rem_5.5rem_4rem] sm:grid-cols-[1fr_5rem_5.5rem_6rem_4.5rem]"
+              stickyHeader
+              cols="grid-cols-[minmax(0,1fr)_3.5rem_4.5rem_3rem] sm:grid-cols-[minmax(0,1fr)_3.5rem_4.5rem_4.75rem_3rem]"
               headers={[
                 { label: 'Contract' },
                 { label: 'Odds', align: 'right' },
@@ -206,6 +210,7 @@ export function Contracts({ session }: { session: string }) {
                 <ContractRow key={c.id} c={c} />
               ))}
             </List>
+            </div>
           )}
         </>
       )}
