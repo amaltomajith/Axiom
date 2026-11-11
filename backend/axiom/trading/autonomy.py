@@ -63,7 +63,9 @@ class AutonomyLadder:
 
     # ------------------------------------------------------------- evidence
     def _graded_since(self, eng: Engine, since: float | None) -> list[dict]:
-        rows = [c for c in eng.ledger.contracts(status="graded") if c.get("result")]
+        rows = [
+            c for c in eng.ledger.contracts(status="graded") if c.get("result") and not c.get("vetoed_by")
+        ]
         if since is not None:
             rows = [c for c in rows if c["result"]["ts"] >= since]
         return sorted(rows, key=lambda c: c["result"]["ts"])

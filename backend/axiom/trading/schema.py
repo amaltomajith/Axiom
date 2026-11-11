@@ -18,4 +18,8 @@ CREATE TABLE IF NOT EXISTS equity_snapshots (
   session TEXT NOT NULL, ts REAL NOT NULL, equity REAL NOT NULL, cash REAL NOT NULL, benchmark REAL,
   PRIMARY KEY (session, ts));
 CREATE TABLE IF NOT EXISTS trader_state (k TEXT PRIMARY KEY, v TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS desk_reviews (
+  run_id TEXT PRIMARY KEY, session TEXT NOT NULL, ts REAL NOT NULL, symbol TEXT NOT NULL,
+  review_json TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS desk_reviews_session ON desk_reviews (session, ts DESC);
 """

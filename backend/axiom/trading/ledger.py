@@ -24,6 +24,18 @@ class MemoryLedger:
         self._journal: list[JournalEntry] = []
         self._equity: dict[float, dict] = {}
         self._state: dict[str, Any] = {}
+        self._reviews: dict[str, dict] = {}
+
+    # desk reviews: the full transcript of each four-agent review
+    def save_review(self, r: dict) -> None:
+        self._reviews[r["run_id"]] = _jsonable(r)
+
+    def reviews(self, limit: int = 20) -> list[dict]:
+        rows = sorted(self._reviews.values(), key=lambda r: r["started_at"], reverse=True)[:limit]
+        return [_brief(r) for r in rows]
+
+    def review(self, run_id: str) -> dict | None:
+        return self._reviews.get(run_id)
 
     # orders
     def save_order(self, o: Order) -> None:
@@ -107,6 +119,11 @@ def _jsonable(d: dict) -> dict:
     return json.loads(json.dumps(d, default=str))
 
 
+def _brief(r: dict) -> dict:
+    """A review without its event list, for the list of past reviews."""
+    return {k: v for k, v in r.items() if k not in ("events", "sources", "findings", "memo", "plan")}
+
+
 def _order_row(session: str, o: dict) -> tuple:
     return (o["id"], session, o["submitted_at"], o["symbol"], o["side"], o["status"], json.dumps(o))
 
@@ -129,8 +146,32 @@ class StoreLedger:
 
     def clear(self) -> None:
         with self._c() as c:
-            for t in ("trade_orders", "trade_contracts", "journal", "equity_snapshots"):
+            for t in ("trade_orders", "trade_contracts", "journal", "equity_snapshots", "desk_reviews"):
                 c.execute(f"DELETE FROM {t} WHERE session=?", (self.session,))
+
+    # desk reviews
+    def save_review(self, r: dict) -> None:
+        row = (r["run_id"], self.session, r["started_at"], r["symbol"], json.dumps(r, default=str))
+        with self._c() as c:
+            c.execute(
+                upsert_sql("desk_reviews", ["run_id", "session", "ts", "symbol", "review_json"], "run_id"),
+                row,
+            )
+
+    def reviews(self, limit: int = 20) -> list[dict]:
+        with self._c() as c:
+            rows = c.execute(
+                "SELECT review_json FROM desk_reviews WHERE session=? ORDER BY ts DESC LIMIT ?",
+                (self.session, limit),
+            ).fetchall()
+        return [_brief(json.loads(r["review_json"])) for r in rows]
+
+    def review(self, run_id: str) -> dict | None:
+        with self._c() as c:
+            r = c.execute(
+                "SELECT review_json FROM desk_reviews WHERE session=? AND run_id=?", (self.session, run_id)
+            ).fetchone()
+        return None if r is None else json.loads(r["review_json"])
 
     # orders
     def save_order(self, o: Order) -> None:

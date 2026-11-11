@@ -385,3 +385,45 @@ async def test_a_rejected_broker_stop_is_reported_not_raised():
     )
     assert o.status == "filled" and "was not placed" in b.stop_error
     assert await b.poll() == []  # polling keeps working
+
+
+async def test_an_alert_asks_the_desk_for_a_review_when_the_desk_is_on(tmp_path, monkeypatch):
+    from axiom.trading.brain import RuleBrain
+
+    calm, spiky = hourly(seed=5), hourly(seed=6)
+    spiky["volume"] = spiky["volume"].astype(float)
+    spiky.iloc[-1, spiky.columns.get_loc("volume")] = float(spiky["volume"].iloc[-21:-1].mean()) * 4
+    data = {"BTC/USD": calm, "ETH/USD": spiky}
+
+    async def fetch(sym):
+        return data[sym.name]
+
+    class FakeDesk(RuleBrain):
+        def __init__(self):
+            self.jobs, self.next_trigger, self.asked = {}, {}, []
+
+        def review_now(self, symbol, strategy, trigger):
+            self.asked.append((symbol, strategy, trigger))
+            return asyncio.create_task(
+                asyncio.sleep(0, result=SimpleNamespace(ok=False, error="test", summary=dict))
+            )
+
+    t = trader(tmp_path, fetch, monkeypatch)
+    t.engine.brain = desk = FakeDesk()
+    await t.start()
+    t.engine.eligible = lambda _s: []  # nothing is signalling: the alert starts the review itself
+    await t.tick()
+    assert desk.asked == [("ETH/USD", None, "alert")] and desk.next_trigger == {}
+    while t.engine._bg:
+        await asyncio.gather(*list(t.engine._bg))
+    assert any("reached no view" in e.text for e in t.engine.ledger.journal_all())
+
+    t2 = trader(tmp_path, fetch, monkeypatch)
+    t2.engine.brain = desk2 = FakeDesk()
+    t2.alerts.clear()
+    t2.engine.ledger.set_state("last_decided", {})
+    t2.engine.eligible = lambda _s: [
+        "sma_cross"
+    ]  # a strategy wants in: the loop's own review carries the label
+    t2._alert("ETH/USD", t.engine.books["ETH/USD"], 1.0, 2.0)
+    assert desk2.asked == [] and desk2.next_trigger == {"ETH/USD": "alert"}

@@ -4,8 +4,9 @@ Two plain checks on the bar that just closed, against the bars before it:
   * volume at least `VOLUME_X` times the average of the previous 20 bars;
   * a range (true range) at least `RANGE_X` times the 14-bar ATR as it stood before this bar.
 
-An alert never trades by itself. The live loop journals it and drops any desk review it had cached for
-that symbol, so if a strategy wants to buy on this bar the four agents review it afresh.
+An alert never trades by itself. The live loop journals it, drops any desk review it had cached for that
+symbol and, when the trading desk is on, starts a fresh four-agent review (within the hourly cap). Whatever
+the review concludes still has to pass the risk kernel like any other idea.
 """
 
 from __future__ import annotations
@@ -50,6 +51,5 @@ def describe(symbol: str, a: dict[str, Any]) -> str:
         parts.append(f"the bar's range was {a['range_x']} times its usual size")
     return (
         f"Alert on {symbol}: {' and '.join(parts)}, with the price {a['move_pct']:+.2f}% on the bar. "
-        "An alert does not trade. Any saved desk review for this symbol was dropped, so a new idea here is "
-        "reviewed afresh."
+        "An alert does not trade. If the trading desk is on, it reviews this symbol now, within its hourly cap."
     )

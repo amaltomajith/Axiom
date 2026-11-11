@@ -48,6 +48,10 @@ class AutonomyIn(BaseModel):
     lock: bool = True
 
 
+class ReviewIn(BaseModel):
+    symbol: str = Field(min_length=1, max_length=20)
+
+
 class ReplayIn(BaseModel):
     symbols: list[str] | None = Field(default=None, max_length=12)
     bars: int = Field(1000, ge=300, le=3000)
@@ -120,6 +124,21 @@ def build_router(svc: TraderService) -> APIRouter:
     async def desk():
         return svc.desk()
 
+    @r.get("/desk/runs")
+    async def desk_runs(limit: int = Query(20, ge=1, le=100)):
+        return await guard(svc.desk_runs)(limit)
+
+    @r.get("/desk/recorded")
+    async def desk_recorded():
+        rec = svc.recorded_review()
+        if rec is None:
+            raise HTTPException(404, "No recorded review is bundled")
+        return rec
+
+    @r.get("/desk/runs/{run_id}")
+    async def desk_run(run_id: str):
+        return await guard(svc.desk_run)(run_id)
+
     @r.get("/backtest/report")
     async def backtest_report():
         rep = svc.backtest_report()
@@ -188,6 +207,10 @@ def build_router(svc: TraderService) -> APIRouter:
     @r.post("/orders/{pending_id}/reject", dependencies=ctl)
     async def reject(pending_id: str):
         return await guard(svc.reject)(pending_id)
+
+    @r.post("/desk/review", dependencies=ctl)
+    async def desk_review(body: ReviewIn):
+        return await guard(svc.review_now)(body.symbol)
 
     @r.post("/replay", dependencies=ctl)
     async def start_replay(body: ReplayIn | None = None):

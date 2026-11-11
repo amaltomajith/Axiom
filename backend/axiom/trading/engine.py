@@ -11,6 +11,7 @@ Nothing here knows whether the broker is simulated or Alpaca, or whether the led
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import math
 import time
@@ -18,6 +19,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from axiom.config import BACKEND_DIR
@@ -89,6 +91,8 @@ class Engine:
         self.benchmark_value: float | None = None
         self.listeners: list[Callable[[dict], None]] = []
         self.last_decisions: dict[str, dict] = {}
+        self._bg: set[asyncio.Task] = set()  # follow-ups to desk reviews started outside the loop
+        self.clock: Callable[[], float] = time.time
         saved = ledger.get_state("engine") or {}
         # Rankings are rebuilt on the next completed bar; until then show the regimes from before the restart.
         self.saved_regimes: dict[str, dict] = dict(ledger.get_state("regimes") or {})
@@ -218,10 +222,18 @@ class Engine:
         self._save()
 
     # ----------------------------------------------- requests from MCP tools
+    def eligible(self, symbol: str) -> list[str]:
+        """Strategies that have qualified in the tournament and are signalling long on the latest bar."""
+        book, r = self.books.get(symbol), self.rankings.get(symbol)
+        if book is None or r is None:
+            return []
+        return [s.strategy for s in r.qualified if float(book.signals[s.strategy][-1]) == 1.0]
+
     async def propose(self, symbol: str, *, strategy: str | None = None, size_fraction: float = 1.0,
-                      reason: str = "", now: float | None = None) -> dict:  # fmt: skip
-        """An entry asked for from outside the loop (an MCP client). It gets no shortcut: the strategy must
-        have qualified and be signalling now, the kernel sizes it, and Supervised mode queues it for a human."""
+                      reason: str = "", now: float | None = None, desk: dict | None = None) -> dict:  # fmt: skip
+        """An entry asked for from outside the loop (an MCP client, or a desk review a human or an alert
+        started). It gets no shortcut: the strategy must have qualified and be signalling now, the kernel
+        sizes it, and Supervised mode queues it for a human. `desk` is the review summary, when there was one."""
         now = now or time.time()
         book, r = self.books.get(symbol), self.rankings.get(symbol)
         if book is None or r is None:
@@ -231,7 +243,7 @@ class Engine:
             raise ValueError(f"{symbol} is already held; one position per symbol")
         if any(p["intent"]["symbol"] == symbol for p in self.st["pending"]):
             raise ValueError(f"an entry for {symbol} is already waiting for approval")
-        live = [s.strategy for s in r.qualified if float(book.signals[s.strategy][-1]) == 1.0]
+        live = self.eligible(symbol)
         strategy = strategy or (live[0] if live else None)
         if strategy not in live:
             raise ValueError(
@@ -243,9 +255,10 @@ class Engine:
         dec = Decision(
             symbol=symbol, ts=now, action="enter_long", strategy=strategy, source="desk",
             confidence=round(min(0.8, 0.5 + 0.05 * max(0.0, std.sharpe)), 2),
-            reason=f"Requested through an MCP order tool: {reason.strip()[:300] or 'no reason given'}",
+            reason=(reason.strip()[:900] if desk else
+                    f"Requested through an MCP order tool: {reason.strip()[:300] or 'no reason given'}"),
             expected_move_pct=round(100 * 2 * atr / price, 2) if price else None,
-            size_factor=size_fraction if size_fraction < 1.0 else None,
+            size_factor=size_fraction if size_fraction < 1.0 else None, desk=desk,
         )  # fmt: skip
         intent = OrderIntent(
             symbol=symbol, action="enter_long", stop_price=round(price - self.cfg.stop_atr_mult * atr, 6),
@@ -266,8 +279,8 @@ class Engine:
             item = {"id": new_id("p-"), "created_at": now, "intent": intent.model_dump(),
                     "verdict": verdict.model_dump(), "decision": dec.model_dump()}  # fmt: skip
             self.st["pending"].append(item)
-            self.journal("proposal", jt.proposal(intent, verdict), ts=now, symbol=symbol,
-                         facts=_vfacts(intent, verdict))  # fmt: skip
+            self.journal("proposal", jt.proposal(intent, verdict) + (jt.reviewed(dec) if dec.desk else ""),
+                         ts=now, symbol=symbol, facts={**_vfacts(intent, verdict), **_desk(dec)})  # fmt: skip
             self.emit("pending", item=item)
             self._save()
             return {**out, "status": "pending_approval", "pending_id": item["id"]}
@@ -275,6 +288,92 @@ class Engine:
         self._save()
         return {**out, "status": "submitted" if order.status != "rejected" else "rejected",
                 "order": order.model_dump()}  # fmt: skip
+
+    # ------------------------------------- desk reviews started outside the loop
+    def start_review(self, symbol: str, *, trigger: str = "manual") -> dict:
+        """Ask the trading desk to review a symbol now (a human pressed the button, or an alert fired).
+        The review itself orders nothing. When it ends, `_after_review` journals the result; an entry is only
+        proposed if a qualified strategy is signalling, and then through `propose`, so the kernel decides."""
+        start = getattr(self.brain, "review_now", None)
+        if start is None:
+            raise ValueError("the trading desk is off; start the backend with TRADER_BRAIN=desk")
+        if symbol not in self.books:
+            raise ValueError(f"{symbol} has no market data yet; is the Autopilot watching it?")
+        live = self.eligible(symbol)
+        strategy = live[0] if live else None
+        task = start(symbol, strategy, trigger)
+        follow = asyncio.create_task(self._after_review(symbol, strategy, trigger, task))
+        self._bg.add(follow)
+        follow.add_done_callback(self._bg.discard)
+        self.emit("state")
+        return {"ok": True, "symbol": symbol, "strategy": strategy, "trigger": trigger,
+                "runs_left": getattr(self.brain, "runs_left", lambda: None)()}  # fmt: skip
+
+    async def _after_review(
+        self, symbol: str, strategy: str | None, trigger: str, task: asyncio.Task
+    ) -> None:
+        try:
+            review = await task
+        except (asyncio.CancelledError, Exception):  # replaced by a newer review, or the loop is closing
+            return
+        now = self.clock()
+        asked = {"manual": "a human asked for it", "alert": "a watchlist alert started it"}.get(
+            trigger, trigger
+        )
+        facts = {"desk": review.summary(), "trigger": trigger, "strategy": strategy}
+        try:
+            if not review.ok:
+                self.journal("note", f"The trading desk reviewed {symbol} ({asked}) but reached no view: "
+                             f"{review.error or 'no rating'}. Nothing was proposed.",
+                             ts=now, symbol=symbol, facts=facts)  # fmt: skip
+                return
+            if strategy is None:
+                self.journal("note", f"The trading desk reviewed {symbol} ({asked}) and rated it {review.rating} "
+                             f"with conviction {review.conviction:.2f}. No qualified strategy is signalling a "
+                             "buy right now, so nothing was proposed.",
+                             ts=now, symbol=symbol, facts=facts)  # fmt: skip
+                return
+            base = Decision(symbol=symbol, ts=now, action="enter_long", strategy=strategy,
+                            reason=f"{strategy} is signalling a buy.")  # fmt: skip
+            dec = self.brain._map(SimpleNamespace(symbol=symbol, ts=now), base, review)  # type: ignore[attr-defined]
+            if dec.veto:
+                book = self.books[symbol]
+                acct = await self.broker.account()
+                self.st.setdefault("last_veto", {})[symbol] = strategy
+                self._journal_veto(symbol, dec, float(book.close[-1]), float(book.atr[-1]), now, acct,
+                                   data_age=now - float(book.ts[-1]))  # fmt: skip
+                return
+            try:
+                await self.propose(symbol, strategy=strategy, size_fraction=dec.size_factor or 1.0,
+                                   reason=dec.reason, now=now, desk=dec.desk)  # fmt: skip
+            except ValueError as e:
+                self.journal("note", f"The trading desk reviewed {symbol} ({asked}) and rated it {review.rating}, "
+                             f"but no entry was proposed: {e}.", ts=now, symbol=symbol, facts=facts)  # fmt: skip
+        finally:
+            self._save()
+            self.emit("state")
+
+    def _journal_veto(self, sym: str, dec: Decision, price: float, atr: float, now: float,
+                      acct: AccountState, *, data_age: float) -> None:  # fmt: skip
+        """Journal a refusal. When the desk refused, also open a virtual contract on the trade it would have
+        been (sized by the kernel, never traded), so the refusal is graded like any other call."""
+        tracked: dict[str, Any] = {}
+        if dec.source == "desk" and self.contracts is not None and price > 0:
+            intent = OrderIntent(
+                symbol=sym, action="enter_long", stop_price=round(price - self.cfg.stop_atr_mult * atr, 6),
+                reason=dec.reason, strategy=dec.strategy, confidence=dec.confidence, source="desk",
+            )  # fmt: skip
+            v = self.kernel.review(intent, acct, self._ctx(sym, price, now, acct, data_age=data_age))
+            c = self.contracts.open_veto(self, intent, v, dec, now) if v.approved else None
+            if c is not None:
+                tracked = {"contract_id": c["id"], "tracked_from": round(v.price, 6),
+                           "stop_price": intent.stop_price}  # fmt: skip
+        text = jt.veto(dec) + (
+            " I will track what this trade would have done and grade the refusal." if tracked else ""
+        )
+        self.journal("veto", text, ts=now, symbol=sym,
+                     facts={"strategy": dec.strategy, "confidence": dec.confidence, "source": dec.source,
+                            **tracked, **_desk(dec)})  # fmt: skip
 
     async def tighten_stop(self, symbol: str, stop_price: float, now: float | None = None) -> dict:
         """Raise a position's stop. A stop can be moved up to lock in less risk, never down."""
@@ -400,9 +499,7 @@ class Engine:
                     self.st["last_block"].pop(sym, None)
                     if dec.veto and self.st.setdefault("last_veto", {}).get(sym) != dec.strategy:
                         self.st["last_veto"][sym] = dec.strategy
-                        self.journal("veto", jt.veto(dec), ts=now, symbol=sym,
-                                     facts={"strategy": dec.strategy, "confidence": dec.confidence,
-                                            "source": dec.source, **_desk(dec)})  # fmt: skip
+                        self._journal_veto(sym, dec, price, atr, now, acct, data_age=now - book.ts[i])
                 continue
             self.st.setdefault("last_veto", {}).pop(sym, None)
             if dec.action == "exit":

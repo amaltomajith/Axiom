@@ -235,3 +235,147 @@ async def test_supervised_proposal_carries_the_desk_review_and_the_smaller_size(
     assert item["intent"]["requested_qty"] == item["verdict"]["qty"]
     out = await eng.approve(item["id"], now=item["created_at"])
     assert out["ok"] and out["order"]["qty"] == pytest.approx(item["verdict"]["qty"], rel=0.05)
+
+
+# ------------------------------------------------- transcripts, on demand, refusals
+async def test_a_finished_review_is_saved_whole_and_listed_without_its_steps(tmp_path):
+    from axiom.memory.store import Store
+    from axiom.trading.ledger import StoreLedger
+
+    for led in (MemoryLedger("live"), StoreLedger(Store(tmp_path / "s.db"), "live")):
+        b = desk()
+        b.sink = led.save_review
+        await b.decide(view())
+        rec = led.review("run123")
+        assert rec["symbol"] == "BTC/USD" and rec["strategy"] == "sma_cross" and rec["trigger"] == "signal"
+        assert rec["outcome"] == {"action": "go", "size_factor": 1.0, "why": ""}
+        assert [e["kind"] for e in rec["events"]] == ["run_start", "final"]
+        assert rec["findings"][0]["claims"][0]["evidence"] == ["T1"]
+        assert rec["sources"]["T1"]["tool"] == "run_backtest"
+        assert rec["memo"]["bull_case"] and rec["memo"]["key_risks"] == ["Volatility can rise."]
+        (brief,) = led.reviews()
+        assert brief["run_id"] == "run123" and "events" not in brief and brief["review"]["rating"] == "BUY"
+        assert led.review("nope") is None
+
+
+async def test_a_failed_review_is_saved_too_and_a_broken_sink_never_loses_it():
+    saved = []
+    b = desk(fail=RuntimeError("429"))
+    b.sink = saved.append
+    d = await b.decide(view())
+    assert d.degraded and saved[0]["outcome"]["action"] == "rules" and "findings" not in saved[0]
+
+    def boom(_):
+        raise OSError("disk full")
+
+    b2 = desk()
+    b2.sink = boom
+    d2 = await b2.decide(view())
+    assert d2.action == "enter_long" and "could not save the review" in b2.last_error
+
+
+async def _ready(brain, autonomy="SUPERVISED", signalling=True):
+    from axiom.trading.contracts import ContractBook
+
+    df = make_ohlcv(400, seed=3, drift=0.002)
+    broker = SimBroker(100_000.0, fill="immediate")
+    eng = build_engine(["BTC/USD"], session="t", broker=broker, ledger=MemoryLedger("t"), brain=brain,
+                       autonomy=autonomy, bar_seconds=86_400, contracts=ContractBook())  # fmt: skip
+    book = SignalBook("BTC/USD", df)
+    eng.set_books({"BTC/USD": book})
+    now = float(book.ts[-1])
+    broker.set_price("BTC/USD", float(book.close[-1]), now)
+    await eng.roll_day(now)
+    eng.clock = lambda: now
+    if signalling:
+        eng.rankings["BTC/USD"] = ranking()
+        eng.eligible = lambda _s: ["sma_cross"]
+    return eng, broker, book
+
+
+async def _settle(eng):
+    while eng._bg:
+        await asyncio.gather(*list(eng._bg))
+
+
+async def test_review_now_proposes_through_the_kernel_and_waits_for_a_human():
+    eng, broker, _ = await _ready(desk(result(conviction=0.3)))
+    out = eng.start_review("BTC/USD")
+    assert out["strategy"] == "sma_cross" and out["trigger"] == "manual"
+    with pytest.raises(ValueError, match="already reviewing"):
+        eng.start_review("BTC/USD")
+    await _settle(eng)
+    (p,) = [j for j in eng.ledger.journal(50) if j.kind == "proposal"]
+    assert p.facts["desk"]["rating"] == "BUY" and p.facts["size_factor"] == 0.5
+    assert all(c["ok"] for c in p.facts["checks"]) and "trading desk rated it BUY" in p.text
+    assert len(eng.st["pending"]) == 1 and not (await broker.account()).positions  # nothing bought yet
+    assert eng.brain.last["BTC/USD"]["trigger"] == "manual"
+
+
+async def test_review_now_without_a_signalling_strategy_proposes_nothing():
+    eng, broker, _ = await _ready(desk(), signalling=False)
+    assert eng.start_review("BTC/USD", trigger="alert")["strategy"] is None
+    await _settle(eng)
+    (n,) = [j for j in eng.ledger.journal(50) if j.kind == "note"]
+    assert "rated it BUY" in n.text and "nothing was proposed" in n.text and n.facts["trigger"] == "alert"
+    assert not eng.st["pending"] and not (await broker.account()).positions
+
+
+async def test_review_now_respects_the_hourly_cap_and_needs_the_desk():
+    eng, _, _ = await _ready(desk(max_runs_per_hour=0))
+    with pytest.raises(ValueError, match="hourly cap"):
+        eng.start_review("BTC/USD")
+    plain, _, _ = await _ready(RuleBrain())
+    with pytest.raises(ValueError, match="trading desk is off"):
+        plain.start_review("BTC/USD")
+    with pytest.raises(ValueError, match="no market data"):
+        eng.start_review("DOGE/USD")
+
+
+async def test_a_refused_trade_is_tracked_graded_and_kept_out_of_the_agents_own_record():
+    from axiom.trading.contracts import ContractBook, calibration, outcomes_text, veto_scorecard
+
+    b = desk(result(rating="SELL"), clock=lambda: 0.0, ttl=1e12)
+    df = make_ohlcv(400, seed=3, drift=0.002)
+    broker = SimBroker(100_000.0, fill="immediate")
+    eng = build_engine(["BTC/USD"], session="t", broker=broker, ledger=MemoryLedger("t"), brain=b,
+                       bar_seconds=86_400, contracts=ContractBook())  # fmt: skip
+    book = SignalBook("BTC/USD", df)
+    eng.set_books({"BTC/USD": book})
+    for i in range(eng.cfg.tournament.window - 1, len(book)):
+        ts = float(book.ts[i])
+        broker.set_price("BTC/USD", float(book.close[i]), ts)
+        await eng.step(ts, {"BTC/USD": i})
+    journal = eng.ledger.journal_all()
+    veto = next(j for j in journal if j.kind == "veto")
+    assert veto.facts["contract_id"] and "grade the refusal" in veto.text
+    graded = [j for j in journal if j.kind == "contract"]
+    assert graded and all(j.facts["vetoed_by"] == "desk" for j in graded)
+    assert graded[0].facts["veto_was_right"] == (graded[0].facts["outcome"] == 0)
+    assert "The trade the desk refused on BTC/USD" in graded[0].text
+    assert not [j for j in journal if j.kind == "entry"] and not (await broker.account()).positions
+
+    contracts = eng.ledger.contracts()
+    card = veto_scorecard(contracts)["vetoes"]
+    assert (
+        card["graded"] == len(graded) and card["would_have_won"] + card["would_have_lost"] == card["graded"]
+    )
+    assert calibration(contracts)["n"] == 0  # a refusal never counts as a trade the agent made
+    assert "Trades this desk refused" in outcomes_text(contracts)
+
+
+def test_veto_scorecard_counts_refusals_and_size_cuts_apart():
+    from axiom.trading.contracts import veto_scorecard
+
+    def c(outcome, ret, **kw):
+        return {"status": "graded", "shadow": False, "result": {"outcome": outcome, "return_pct": ret}, **kw}
+
+    card = veto_scorecard([
+        c(0, -3.0, vetoed_by="desk", shadow=True), c(0, -1.0, vetoed_by="desk", shadow=True),
+        c(1, 2.0, vetoed_by="desk", shadow=True), {"status": "open", "vetoed_by": "desk", "result": None},
+        c(0, -2.0, size_factor=0.5), c(1, 4.0, size_factor=None), c(1, 1.0, shadow=True),
+    ])  # fmt: skip
+    assert card["vetoes"] == {"graded": 3, "open": 1, "would_have_won": 1, "would_have_lost": 2,
+                              "avg_return_pct": -0.67}  # fmt: skip
+    assert card["halved"]["graded"] == 1 and card["halved"]["would_have_lost"] == 1
+    assert veto_scorecard([])["vetoes"]["avg_return_pct"] is None

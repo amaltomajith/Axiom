@@ -233,3 +233,23 @@ def test_serve_frontend_without_a_build_fails_loudly(tmp_path, monkeypatch):
     get_settings.cache_clear()
     with pytest.raises(RuntimeError, match="build:selfhost"):
         create_app()
+
+
+def test_desk_reviews_are_readable_after_a_restart_and_review_now_is_guarded():
+    c, svc = client()
+    rec = {"run_id": "r1", "symbol": "BTC/USD", "strategy": "sma_cross", "trigger": "manual", "started_at": 5.0,
+           "finished_at": 9.0, "review": {"rating": "HOLD"}, "outcome": {"action": "veto"},
+           "events": [{"seq": 1, "kind": "tool_call", "agent": "Technical Analyst", "data": {"tool": "run_backtest"}}]}  # fmt: skip
+    svc.trader().engine.ledger.save_review(rec)
+
+    c2, _ = client()  # a fresh app on the same database
+    (row,) = c2.get("/api/trader/desk/runs").json()
+    assert row["run_id"] == "r1" and row["outcome"] == {"action": "veto"} and "events" not in row
+    full = c2.get("/api/trader/desk/runs/r1").json()
+    assert full["events"][0]["data"]["tool"] == "run_backtest"
+    assert c2.get("/api/trader/desk/runs/nope").status_code == 404
+
+    assert c2.post("/api/trader/desk/review", json={"symbol": "BTC/USD"}).status_code == 401
+    off = c2.post("/api/trader/desk/review", json={"symbol": "BTC/USD"}, headers=AUTH)
+    assert off.status_code == 400 and "trading desk is off" in off.json()["detail"]
+    assert "not_taken" in c2.get("/api/trader/calibration").json()

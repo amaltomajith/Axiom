@@ -58,7 +58,7 @@ PLANNED = ("stop", "signal", "time stop", "regime")
 class ContractBook:
     # ------------------------------------------------------------- create
     def _new(self, eng: Engine, intent: OrderIntent, v: RiskVerdict, dec: Decision, now: float, *,
-             shadow: bool) -> dict:  # fmt: skip
+             shadow: bool, vetoed_by: str | None = None) -> dict:  # fmt: skip
         horizon = int(dec.horizon_bars) if dec.horizon_bars else None
         r = eng.rankings.get(intent.symbol)
         trend = (r.regime.get("trend") if r else None) or "unknown"
@@ -75,6 +75,8 @@ class ContractBook:
             ] + ([{"type": "time_stop", "after_bars": horizon},
                   {"type": "regime_change", "from": trend, "to": "downtrend"}] if horizon else []),
             "result": None,
+            # a size cut the desk asked for, and whether this is a trade the desk refused (tracked, never traded)
+            "size_factor": dec.size_factor, "vetoed_by": vetoed_by,
         }  # fmt: skip
         eng.ledger.save_contract(c)
         return c
@@ -86,7 +88,10 @@ class ContractBook:
         self, eng: Engine, intent: OrderIntent, v: RiskVerdict, dec: Decision, now: float
     ) -> dict | None:
         """A would-be entry in SHADOW mode. One virtual contract per symbol at a time."""
-        if any(c["symbol"] == intent.symbol and c["shadow"] for c in eng.ledger.contracts(status="open")):
+        if any(
+            c["symbol"] == intent.symbol and c["shadow"] and not c.get("vetoed_by")
+            for c in eng.ledger.contracts(status="open")
+        ):
             return None
         c = self._new(eng, intent, v, dec, now, shadow=True)
         eng.journal(
@@ -98,6 +103,17 @@ class ContractBook:
                    "strategy": intent.strategy, "confidence": intent.confidence},
         )  # fmt: skip
         return c
+
+    def open_veto(
+        self, eng: Engine, intent: OrderIntent, v: RiskVerdict, dec: Decision, now: float
+    ) -> dict | None:
+        """The desk refused this entry. Nothing is traded; a virtual contract follows the trade it would have
+        been to its stop or exit signal, so the refusal itself gets graded. One per symbol at a time."""
+        if any(
+            c["symbol"] == intent.symbol and c.get("vetoed_by") for c in eng.ledger.contracts(status="open")
+        ):
+            return None
+        return self._new(eng, intent, v, dec, now, shadow=True, vetoed_by="desk")
 
     def cancel(self, eng: Engine, contract: dict, why: str, now: float) -> None:
         contract = {**contract, "status": "cancelled", "result": {"ts": now, "reason": why}}
@@ -129,6 +145,13 @@ class ContractBook:
         }  # fmt: skip
         c = {**c, "status": "graded", "result": result}
         eng.ledger.save_contract(c)
+        if c.get(
+            "vetoed_by"
+        ):  # a refused trade: it says if the refusal was right, and never moves the ladder
+            eng.journal("contract", _veto_text(c, result), ts=now, symbol=c["symbol"],
+                        facts={"contract_id": c["id"], "shadow": True, "vetoed_by": c["vetoed_by"],
+                               "veto_was_right": not outcome, **result})  # fmt: skip
+            return c
         eng.journal("contract", _grade_text(c, result), ts=now, symbol=c["symbol"],
                     facts={"contract_id": c["id"], "shadow": c["shadow"], **result})  # fmt: skip
         if eng.autonomy is not None:
@@ -203,13 +226,44 @@ def _grade_text(c: dict, r: dict) -> str:
     )
 
 
+def _veto_text(c: dict, r: dict) -> str:
+    ret = r.get("return_pct")
+    move = f"{ret:+.2f}%" if ret is not None else "n/a"
+    right = "The refusal was right." if not r["outcome"] else "The refusal cost a winning trade."
+    return (
+        f"The trade the desk refused on {c['symbol']} ({c.get('strategy')}) would have ended at {move} after "
+        f"costs. {right} It would have closed because {r['reason'].rstrip('.')}."
+    )
+
+
+# ------------------------------------------------------------ trades not taken
+def veto_scorecard(contracts: list[dict]) -> dict[str, Any]:
+    """How the desk's refusals and size cuts turned out. A veto is right when the refused trade would have
+    lost money; a size cut is right when the smaller trade lost."""
+
+    def tally(rows: list[dict]) -> dict[str, Any]:
+        graded = [c for c in rows if c["status"] == "graded" and c.get("result")]
+        rets = [float(c["result"].get("return_pct") or 0.0) for c in graded]
+        won = sum(int(c["result"]["outcome"]) for c in graded)
+        return {
+            "graded": len(graded), "open": sum(1 for c in rows if c["status"] == "open"),
+            "would_have_won": won, "would_have_lost": len(graded) - won,
+            "avg_return_pct": round(sum(rets) / len(rets), 2) if rets else None,
+        }  # fmt: skip
+
+    vetoes = [c for c in contracts if c.get("vetoed_by")]
+    halved = [c for c in contracts if not c.get("vetoed_by") and not c.get("shadow")
+              and (c.get("size_factor") or 1.0) < 1.0]  # fmt: skip
+    return {"vetoes": tally(vetoes), "halved": tally(halved)}
+
+
 # ------------------------------------------------------------ outcome memory
 def outcomes_by_regime(contracts: list[dict]) -> list[dict[str, Any]]:
     """How graded trades ended, grouped by the market regime at entry and the strategy: the desk's long-term
     memory. Shadow contracts (entries the agent was not allowed to take) count, and are reported apart."""
     groups: dict[tuple[str, str], dict[str, Any]] = {}
     for c in contracts:
-        if c["status"] != "graded" or not c.get("result"):
+        if c["status"] != "graded" or not c.get("result") or c.get("vetoed_by"):
             continue
         key = (c.get("regime_at_entry") or "unknown", c.get("strategy") or "unknown")
         g = groups.setdefault(key, {"n": 0, "wins": 0, "ret": 0.0, "stops": 0, "shadow": 0, "last_ts": 0.0})
@@ -233,17 +287,27 @@ def outcomes_by_regime(contracts: list[dict]) -> list[dict[str, Any]]:
 def outcomes_text(contracts: list[dict], *, limit: int = 6) -> str:
     """The same memory as a few plain lines, small enough to hand to the Synthesizer and the Critic."""
     rows = outcomes_by_regime(contracts)[:limit]
-    return "\n".join(
+    lines = [
         f"- {r['strategy']} (market regime at entry: {r['regime']}): {r['trades']} graded paper trade(s), {r['wins']} "
         f"profitable, average result {r['avg_return_pct']:+.2f}%, {r['stop_outs']} ended at the stop-loss."
         for r in rows
-    )
+    ]
+    v = veto_scorecard(contracts)["vetoes"]
+    if v["graded"]:  # the desk's own record on the trades it refused
+        lines.append(
+            f"- Trades this desk refused: {v['graded']} graded, {v['would_have_lost']} would have lost money and "
+            f"{v['would_have_won']} would have made money (average result {v['avg_return_pct']:+.2f}%)."
+        )
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------- calibration
 def calibration(contracts: list[dict], *, last: int | None = None) -> dict[str, Any]:
     """Brier score, win rate and reliability buckets over graded contracts (newest `last` if given)."""
-    graded = sorted((c for c in contracts if c["status"] == "graded"), key=lambda c: c["result"]["ts"])
+    graded = sorted(
+        (c for c in contracts if c["status"] == "graded" and not c.get("vetoed_by")),
+        key=lambda c: c["result"]["ts"],
+    )
     if last is not None:
         graded = graded[-last:]
     n = len(graded)

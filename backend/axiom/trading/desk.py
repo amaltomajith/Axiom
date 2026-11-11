@@ -41,6 +41,7 @@ from .symbols import parse
 Analyzer = Callable[..., Awaitable[AnalysisResult]]
 BoxFactory = Callable[[], AbstractAsyncContextManager[ToolBox]]
 HoldPolicy = Literal["veto", "half"]
+Trigger = Literal["signal", "alert", "manual"]
 BULLISH = ("BUY", "STRONG_BUY")
 BEARISH = ("SELL", "STRONG_SELL")
 HALF = 0.5
@@ -126,6 +127,45 @@ def review_from(result: AnalysisResult, symbol: str, strategy: str | None, start
     )
 
 
+def outcome_of(r: DeskReview, hold_policy: HoldPolicy) -> tuple[str, float, str]:
+    """What the desk does with a review, by fixed rules: `rules` (no view, the wrapped brain decides), `veto`,
+    `half` (enter at half the size the kernel allows) or `go`. Returns the action, the size factor and why."""
+    if not r.ok:
+        return "rules", 1.0, r.error or "the desk had no view"
+    if r.rating in BEARISH or (r.rating == "HOLD" and hold_policy == "veto"):
+        return "veto", 0.0, f"the desk rated it {r.rating}"
+    if r.rating == "HOLD":
+        return "half", HALF, "the desk was not convinced"
+    if r.critic_ok is False:
+        issue = f": {r.critic_issues[0]}" if r.critic_issues else ""
+        return "half", HALF, f"the Risk Critic raised issues{issue}"
+    if (r.conviction or 0.0) < LOW_CONVICTION:
+        return "half", HALF, f"conviction ended below {LOW_CONVICTION:.2f}"
+    return "go", 1.0, ""
+
+
+def transcript_of(result: AnalysisResult) -> dict[str, Any]:
+    """The parts of a finished run the transcript shows and the short summary leaves out: each agent's
+    claims, the bull and bear cases, the risks, the position the rules would allow, and every cited source."""
+    m = result.memo
+    claims = [*m.all_claims, *(c for f in result.findings for c in f.claims)]
+    cited = sorted({i for c in claims for i in c.evidence if i in result.evidence})
+    return {
+        "findings": [
+            {"agent": f.agent, "stance": f.stance, "confidence": f.confidence, "summary": f.summary,
+             "claims": [c.model_dump() for c in f.claims], "caveats": f.caveats}
+            for f in result.findings
+        ],
+        "memo": {
+            "bull_case": [c.model_dump() for c in m.bull_case], "bear_case": [c.model_dump() for c in m.bear_case],
+            "key_risks": m.key_risks, "what_would_change_my_mind": m.what_would_change_my_mind,
+            "horizon_days": m.horizon_days,
+        },
+        "plan": result.position.model_dump(),
+        "sources": {i: _source_view(result.evidence[i]) for i in cited[:30]},
+    }  # fmt: skip
+
+
 def _source_view(item: dict) -> dict[str, Any]:
     """What a citation chip shows: the tool, its arguments, the as-of stamp and a short excerpt."""
     meta: dict[str, Any] = {}
@@ -187,9 +227,10 @@ class DeskBrain:
         self.runs: deque[float] = deque()
         self.jobs: dict[str, _Job] = {}
         self.listeners: list[Callable[[dict], None]] = []
-        self.last: dict[
-            str, dict[str, Any]
-        ] = {}  # symbol -> {"review": ..., "events": [...]} for the cockpit
+        # symbol -> {"review": ..., "events": [...]} for the cockpit
+        self.last: dict[str, dict[str, Any]] = {}
+        self.sink: Callable[[dict], None] | None = None  # where a finished review's transcript is saved
+        self.next_trigger: dict[str, Trigger] = {}  # why the next review of a symbol starts, if not a signal
         self.last_error: str | None = None
 
     @classmethod
@@ -238,7 +279,8 @@ class DeskBrain:
         if job is None:
             if not self._take_run():
                 return _stands(base, "the hourly cap on desk reviews was reached", None)
-            task = asyncio.create_task(self._review(view, base, now))
+            trigger = self.next_trigger.pop(view.symbol, "signal")
+            task = asyncio.create_task(self._review(view.symbol, base.strategy, now, trigger))
             job = self.jobs[view.symbol] = _Job(base.strategy, now, task)
         if not job.task.done():
             await asyncio.wait({job.task}, timeout=self.wait)
@@ -254,10 +296,26 @@ class DeskBrain:
             review = DeskReview(False, view.symbol, base.strategy, job.started, error=type(e).__name__)
         return self._map(view, base, review)
 
-    async def _review(self, view: MarketView, base: Decision, started: float) -> DeskReview:
-        sym = view.symbol
+    def review_now(self, symbol: str, strategy: str | None, trigger: Trigger = "manual") -> asyncio.Task:
+        """Start a review outside the loop (a human asked, or an alert fired). Same pipeline, same hourly cap.
+        It only reviews: whatever follows from the result goes through the engine and the risk kernel."""
+        job = self.jobs.get(symbol)
+        if job is not None and not job.task.done():
+            raise ValueError(f"the trading desk is already reviewing {symbol}")
+        if not self._take_run():
+            raise ValueError("the hourly cap on desk reviews was reached; try again later")
+        now = self.clock()
+        task = asyncio.create_task(self._review(symbol, strategy, now, trigger))
+        self.jobs[symbol] = _Job(strategy, now, task)
+        return task
+
+    async def _review(
+        self, sym: str, strategy: str | None, started: float, trigger: Trigger = "signal"
+    ) -> DeskReview:
         events: list[dict[str, Any]] = []
-        self.last[sym] = {"review": None, "events": events, "started_at": started, "strategy": base.strategy}
+        self.last[sym] = {"review": None, "events": events, "started_at": started, "strategy": strategy,
+                          "trigger": trigger, "run_id": None}  # fmt: skip
+        detail: dict[str, Any] = {}
 
         def on_event(ev: TraceEvent) -> None:
             if ev.type not in _KEEP:
@@ -268,6 +326,7 @@ class DeskBrain:
             self._publish({"type": "desk", "ts": ev.ts, **item})
 
         tracer = DeskTracer(on_event=on_event)
+        self.last[sym]["run_id"] = tracer.run_id
 
         async def work() -> AnalysisResult:
             async with self.box_factory() as box:
@@ -282,7 +341,8 @@ class DeskBrain:
 
         try:
             result = await asyncio.wait_for(work(), self.timeout)
-            review = review_from(result, sym, base.strategy, started)
+            review = review_from(result, sym, strategy, started)
+            detail = transcript_of(result)
         except asyncio.CancelledError:
             raise
         except Exception as e:
@@ -292,9 +352,22 @@ class DeskBrain:
                 if isinstance(e, TimeoutError)
                 else f"the review failed ({type(e).__name__})"
             )
-            review = DeskReview(False, sym, base.strategy, started, run_id=tracer.run_id, error=why)
+            review = DeskReview(False, sym, strategy, started, run_id=tracer.run_id, error=why)
         review.finished_at = self.clock()
         self.last[sym]["review"] = review.summary()
+        action, factor, why = outcome_of(review, self.hold_policy)
+        outcome = {"action": action, "size_factor": factor, "why": why}
+        self.last[sym]["outcome"] = outcome
+        if self.sink is not None:
+            try:
+                self.sink({
+                    "run_id": review.run_id or tracer.run_id, "symbol": sym, "strategy": strategy,
+                    "trigger": trigger, "started_at": started, "finished_at": review.finished_at,
+                    "hold_policy": self.hold_policy, "review": review.summary(), "outcome": outcome,
+                    **detail, "events": list(events),
+                })  # fmt: skip
+            except Exception as e:  # a failed save must never lose the review itself
+                self.last_error = f"could not save the review: {type(e).__name__}: {e}"[:200]
         self._publish({"type": "desk_done", "ts": review.finished_at, "symbol": sym, "run_id": review.run_id,
                        "review": review.summary()})  # fmt: skip
         return review
@@ -318,18 +391,10 @@ class DeskBrain:
             symbol=view.symbol, ts=view.ts, source="desk", strategy=base.strategy, flags=base.flags,
             confidence=round(min(0.9, max(0.1, r.conviction or 0.0)), 2), thesis=r.thesis, desk=r.summary(),
         )  # fmt: skip
-        hold_veto = r.rating == "HOLD" and self.hold_policy == "veto"
-        if r.rating in BEARISH or hold_veto:
+        action, factor, why = outcome_of(r, self.hold_policy)
+        if action == "veto":
             return Decision(**d, action="stay_flat", veto=True,
                             reason=f"{head} It vetoed the {base.strategy} entry: {r.thesis}")  # fmt: skip
-        factor, why = 1.0, ""
-        if r.rating == "HOLD":
-            factor, why = HALF, "the desk was not convinced"
-        elif r.critic_ok is False:
-            issue = f": {r.critic_issues[0]}" if r.critic_issues else ""
-            factor, why = HALF, f"the Risk Critic raised issues{issue}"
-        elif (r.conviction or 0.0) < LOW_CONVICTION:
-            factor, why = HALF, f"conviction ended below {LOW_CONVICTION:.2f}"
         size = (
             f" It asked for half the size the risk rules allow because {why.rstrip('.')}."
             if factor < 1.0

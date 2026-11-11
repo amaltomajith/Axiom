@@ -123,6 +123,8 @@ class Trader:
         if getattr(engine.brain, "name", "") == "desk" and engine.brain.memory is None:
             # the desk's long-term memory: how its graded paper trades ended, by regime and strategy
             engine.brain.memory = lambda _symbol: outcomes_text(ledger.contracts())
+        if getattr(engine.brain, "name", "") == "desk" and engine.brain.sink is None:
+            engine.brain.sink = ledger.save_review  # every review's full transcript, kept across restarts
         if fetch is None:
             if tf == "1Day":
 
@@ -216,6 +218,15 @@ class Trader:
         if job is not None:
             job.task.cancel()
         self.engine.journal("note", alerts.describe(name, a), ts=now, symbol=name, facts={"alert": a})
+        brain = self.engine.brain
+        if hasattr(brain, "review_now"):
+            if self.engine.eligible(name):
+                brain.next_trigger[name] = "alert"  # a strategy wants in: the loop's own review runs this bar
+            else:
+                try:
+                    self.engine.start_review(name, trigger="alert")
+                except ValueError:  # the hourly cap, or a review already running
+                    pass
         self.engine.emit("state")
 
     def _benchmark(self, books: dict[str, SignalBook]) -> None:
