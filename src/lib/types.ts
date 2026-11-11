@@ -139,7 +139,7 @@ export interface Health {
   daily_cap?: number | null;
 }
 
-/** GET /api/status: the health snapshot plus aggregate counts, for the hub page. */
+/** GET /api/status: the health snapshot plus aggregate counts. */
 export interface ApiStatus extends Health {
   counts: {
     runs: number;

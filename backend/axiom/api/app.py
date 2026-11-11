@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import hmac
 import json
-import re
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any
@@ -89,18 +88,6 @@ def require_token(request: Request) -> None:
         raise HTTPException(403, "AXIOM_API_TOKEN must be set before real actions can be approved")
 
 
-_VISITOR_RE = re.compile(r"^[A-Za-z0-9-]{16,64}$")
-
-
-def visitor_id(request: Request) -> str:
-    """The anonymous id the Angular app sends in `X-Axiom-Visitor`. It scopes a watchlist; it is not
-    authentication (anyone holding the id can edit that list)."""
-    v = request.headers.get("x-axiom-visitor", "")
-    if not _VISITOR_RE.match(v):
-        raise HTTPException(400, "X-Axiom-Visitor header must be 16 to 64 letters, digits or dashes")
-    return v
-
-
 class AnalyzeRequest(BaseModel):
     ticker: str = Field(min_length=1, max_length=10)
     equity: float = Field(100_000.0, gt=0, le=1e9)
@@ -176,9 +163,8 @@ def create_app() -> FastAPI:
 
     @app.get("/api/status")
     async def status():
-        """Everything the hub page shows about the API in one public call: the config snapshot from
-        /api/health plus aggregate counts from the store. Counts only, never secrets or visitor ids.
-        Kept separate from /api/health because both front ends poll health to wake the function."""
+        """The config snapshot from /api/health plus aggregate counts from the store, in one public call.
+        Counts only, never secrets. Kept separate from /api/health, which the UI polls to wake the function."""
         body = config_snapshot()
         st = store()
         counts = await asyncio.to_thread(st.counts)
@@ -425,39 +411,9 @@ def create_app() -> FastAPI:
         store().watch_remove(market.normalize_ticker(ticker))
         return store().watchlist()
 
-    # ------------------------------------------------- per-visitor watchlist
     @app.get("/api/tickers/search")
     async def ticker_search(q: str = Query(min_length=1, max_length=40), limit: int = Query(8, ge=1, le=20)):
         return await sec.search_tickers(q, limit)
-
-    @app.get("/api/visitor/watchlist")
-    async def visitor_list(visitor: str = Depends(visitor_id)):
-        return store().visitor_watchlist(visitor)
-
-    def _watch_write(request: Request) -> None:
-        bucket = datetime.now(UTC).strftime("%Y%m%d%H")
-        if not store().hit(f"watch:{client_ip(request)}", bucket, get_settings().watch_writes_per_hour):
-            raise HTTPException(
-                429,
-                "Too many watchlist changes; try again later.",
-                headers={"Retry-After": str(_seconds_to_next("hour"))},
-            )
-
-    @app.put("/api/visitor/watchlist/{ticker}")
-    async def visitor_add(ticker: str, request: Request, visitor: str = Depends(visitor_id)):
-        t = market.normalize_ticker(ticker)
-        _watch_write(request)
-        cap = get_settings().visitor_watchlist_max
-        if not store().visitor_watch_add(visitor, t, cap):
-            raise HTTPException(409, f"Your watchlist is full ({cap} tickers). Remove one first.")
-        return store().visitor_watchlist(visitor)
-
-    @app.delete("/api/visitor/watchlist/{ticker}")
-    async def visitor_remove(ticker: str, request: Request, visitor: str = Depends(visitor_id)):
-        t = market.normalize_ticker(ticker)
-        _watch_write(request)
-        store().visitor_watch_remove(visitor, t)
-        return store().visitor_watchlist(visitor)
 
     @app.get("/api/trades")
     async def get_trades():

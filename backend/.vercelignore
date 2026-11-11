@@ -12,4 +12,3 @@ scripts
 .mypy_cache
 *.db
 uv.lock
-data_platform

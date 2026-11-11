@@ -10,4 +10,3 @@ scripts
 .ruff_cache
 .mypy_cache
 *.db
-data_platform

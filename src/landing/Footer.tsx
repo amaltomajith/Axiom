@@ -28,7 +28,6 @@ export function Footer() {
           <p className="mt-3 max-w-[48ch] text-caption text-muted-foreground">Research tooling, not financial advice. Daily bars and public filings only.</p>
         </div>
         <nav aria-label="Footer" className="flex flex-wrap gap-x-6 gap-y-2 text-small text-muted-foreground">
-          <Link className="hover:text-foreground" to="/hub">Hub: every part</Link>
           <a className="hover:text-foreground" href="/#how">How it works</a>
           <a className="hover:text-foreground" href="/#mcp">MCP setup</a>
           <a className="hover:text-foreground" href={EVAL_REPORT} target="_blank" rel="noreferrer">Eval report</a>

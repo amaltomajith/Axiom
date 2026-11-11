@@ -280,7 +280,7 @@ def test_scorecard_is_honest_when_empty():
     )
 
 
-# ------------------------------------------------- Angular app: search, visitor lists, EventSource stream
+# ------------------------------------------------- ticker search, EventSource stream
 SEC_MAP = {
     "AAPL": [320193, "Apple Inc."],
     "AAP": [1158449, "Advance Auto Parts Inc"],
@@ -288,7 +288,6 @@ SEC_MAP = {
     "PINE": [2, "Alpine Income Property Trust"],
     "MSFT": [789019, "Microsoft Corp"],
 }
-VISITOR = {"X-Axiom-Visitor": "visitor-aaaaaaaaaaaa"}
 
 
 def test_ticker_search_ranks_exact_then_prefix_then_name(monkeypatch):
@@ -307,51 +306,6 @@ def test_ticker_search_ranks_exact_then_prefix_then_name(monkeypatch):
     assert len(c.get("/api/tickers/search?q=a&limit=2").json()) == 2
     assert c.get("/api/tickers/search?q=").status_code == 422
     assert c.get("/api/tickers/search?q=a&limit=99").status_code == 422
-
-
-def test_visitor_watchlists_are_separate_from_each_other_and_the_global_list():
-    c = make_client()
-    other = {"X-Axiom-Visitor": "visitor-bbbbbbbbbbbb"}
-    assert [w["ticker"] for w in c.put("/api/visitor/watchlist/nvda", headers=VISITOR).json()] == ["NVDA"]
-    c.put("/api/visitor/watchlist/msft", headers=other)
-    assert [w["ticker"] for w in c.get("/api/visitor/watchlist", headers=VISITOR).json()] == ["NVDA"]
-    assert [w["ticker"] for w in c.get("/api/visitor/watchlist", headers=other).json()] == ["MSFT"]
-    assert c.get("/api/watchlist").json() == []  # the cron's global list is untouched
-    assert c.delete("/api/visitor/watchlist/NVDA", headers=VISITOR).json() == []
-    assert c.put("/api/visitor/watchlist/A%20B", headers=VISITOR).status_code == 400
-
-
-def test_visitor_watchlist_needs_no_token_but_a_well_formed_id(monkeypatch):
-    monkeypatch.setenv("AXIOM_API_TOKEN", "s3cret")
-    get_settings.cache_clear()
-    c = make_client()
-    assert c.put("/api/visitor/watchlist/AAPL", headers=VISITOR).status_code == 200
-    assert c.get("/api/visitor/watchlist").status_code == 400
-    assert c.put("/api/visitor/watchlist/AAPL", headers={"X-Axiom-Visitor": "short"}).status_code == 400
-    assert (
-        c.put("/api/visitor/watchlist/AAPL", headers={"X-Axiom-Visitor": "x" * 15 + ";"}).status_code == 400
-    )
-
-
-def test_visitor_watchlist_cap_and_write_limit(monkeypatch):
-    monkeypatch.setenv("VISITOR_WATCHLIST_MAX", "2")
-    monkeypatch.setenv("WATCH_WRITES_PER_HOUR", "5")
-    get_settings.cache_clear()
-    c = make_client()
-    assert c.put("/api/visitor/watchlist/AAPL", headers=VISITOR).status_code == 200
-    assert c.put("/api/visitor/watchlist/MSFT", headers=VISITOR).status_code == 200
-    full = c.put("/api/visitor/watchlist/NVDA", headers=VISITOR)
-    assert full.status_code == 409 and "full (2 tickers)" in full.json()["detail"]
-    assert (
-        c.put("/api/visitor/watchlist/AAPL", headers=VISITOR).status_code == 200
-    )  # re-adding is fine when full
-    assert c.delete("/api/visitor/watchlist/MSFT", headers=VISITOR).status_code == 200  # 5th write
-    limited = c.put("/api/visitor/watchlist/NVDA", headers=VISITOR)
-    assert limited.status_code == 429 and limited.headers["retry-after"].isdigit()
-    assert c.get("/api/visitor/watchlist", headers=VISITOR).status_code == 200  # reads are not limited
-    hour = datetime.now(UTC).strftime("%Y%m%d%H")
-    assert store_mod.get_store().usage("watch:testclient", hour) == 5
-    assert store_mod.get_store().usage("ip:testclient", hour) == 0  # analysis allowance untouched
 
 
 def test_get_stream_runs_the_same_pipeline_as_the_post():

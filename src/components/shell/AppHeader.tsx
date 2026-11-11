@@ -1,9 +1,7 @@
-import { LayoutGrid } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Logo, LogoMark } from '@/components/Logo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { TokenDialog } from '@/components/TokenDialog';
-import { Button } from '@/components/ui/button';
 import { StatusPopover } from '@/components/shell/StatusPopover';
 import { TickerCommand } from '@/components/shell/TickerCommand';
 import type { Health } from '@/lib/types';
@@ -28,11 +26,6 @@ export function AppHeader({ ticker, onTicker, health, offline }: Props) {
         <TickerCommand ticker={ticker} onSelect={onTicker} />
         <div className="ml-auto flex items-center gap-0.5">
           <StatusPopover health={health} offline={offline} />
-          <Button asChild variant="ghost" size="icon" aria-label="Axiom hub, every part in one place" title="Hub">
-            <Link to="/hub">
-              <LayoutGrid />
-            </Link>
-          </Button>
           <ThemeToggle />
           <TokenDialog />
         </div>

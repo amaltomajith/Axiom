@@ -1,7 +1,7 @@
 [project]
 name = "axiom"
 version = "0.1.0"
-description = "Axiom: agentic market-intelligence backend (MCP server, multi-agent analysts, honest quant)"
+description = "Axiom Autopilot: a paper-trading agent behind a deterministic risk kernel, plus the Axiom research agents"
 requires-python = ">=3.11"
 dependencies = [
     "numpy>=1.26",
@@ -24,12 +24,6 @@ dependencies = [
 
 [project.optional-dependencies]
 actions = ["composio>=0.8"]  # real Notion/Sheets/Slack execution; dry-run works without it
-# data platform (BigQuery ELT in data_platform/); never part of the API bundle
-data = [
-    "google-cloud-bigquery>=3.25",
-    "pyarrow>=17",
-    "pyyaml>=6",
-]
 
 [dependency-groups]
 dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.5", "mypy>=1.10", "respx>=0.21"]

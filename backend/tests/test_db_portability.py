@@ -106,20 +106,6 @@ def test_actions_idempotency_watchlist_trades(backend):
     assert tr not in [t["id"] for t in st.trades()]
 
 
-def test_visitor_watchlist_is_scoped_and_capped(backend):
-    st = Store(**backend)
-    me, other, a, b, c = uuid.uuid4().hex, uuid.uuid4().hex, _tid(), _tid(), _tid()
-    assert st.visitor_watch_add(me, a, cap=2) and st.visitor_watch_add(me, a, cap=2)
-    assert st.visitor_watch_add(me, b, cap=2)
-    assert st.visitor_watch_add(me, c, cap=2) is False  # full
-    assert st.visitor_watch_add(me, a, cap=2) is True  # already listed: still fine when full
-    assert st.visitor_watch_add(other, c, cap=2)
-    assert [w["ticker"] for w in st.visitor_watchlist(me)] == [a, b]
-    assert [w["ticker"] for w in st.visitor_watchlist(other)] == [c]
-    st.visitor_watch_remove(me, a)
-    assert [w["ticker"] for w in st.visitor_watchlist(me)] == [b]
-
-
 def test_usage_counter_is_a_hard_cap(backend):
     st = Store(**backend)
     key = "ip:" + _tid()

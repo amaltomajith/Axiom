@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * One command for local development: the API, the React terminal and Axiom Watch together.
+ * One command for local development: the API (with the trader) and the React terminal together.
  *
  *   npm run dev:all
  *   npm run dev:all -- --only api,terminal
@@ -9,19 +9,17 @@
  * Plain Node, no dependencies. Each process gets a coloured prefix; Ctrl+C stops all of them.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { connect } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WIN = process.platform === 'win32';
-const ANGULAR_MIN = [22, 22, 3];
 
 const PARTS = {
   api: { label: 'api', color: 36, cwd: 'backend', cmd: 'uv run python -m axiom.api', port: 8000, url: 'http://localhost:8000/api/status' },
-  terminal: { label: 'terminal', color: 35, cwd: '.', cmd: 'npm run dev', port: 5173, url: 'http://localhost:5173  (hub: /hub)' },
-  watch: { label: 'watch', color: 33, cwd: 'angular', cmd: 'npm start', port: 4200, url: 'http://localhost:4200' },
+  terminal: { label: 'terminal', color: 35, cwd: '.', cmd: 'npm run dev', port: 5173, url: 'http://localhost:5173/app' },
 };
 
 const HELP = `Start Axiom locally.
@@ -37,8 +35,6 @@ Options
 Notes
   * The API needs uv. If "uv sync" fails on the F: drive venv, set UV_PROJECT_ENVIRONMENT to a venv
     elsewhere (for example C:/Users/<you>/.venvs/axiom) before running this.
-  * Axiom Watch needs Node 24 or ${ANGULAR_MIN.join('.')}+. If yours is older, a newer Node from nvm is used
-    for it automatically when one is installed; otherwise it is skipped with the fix.
   * Analysis needs an LLM: a free key in backend/.env, or Ollama running with qwen3:8b.`;
 
 // ---------------------------------------------------------------- arguments
@@ -60,12 +56,6 @@ const prodDb = args.includes('--prod-db');
 const paint = (code, s) => (process.stdout.isTTY ? `\x1b[${code}m${s}\x1b[0m` : s);
 const note = s => console.log(`${paint('2', 'dev')}  ${s}`);
 const warn = s => console.log(`${paint('33', 'dev')}  ${s}`);
-
-const parseVersion = v => v.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0);
-const atLeast = (v, min) => {
-  for (let i = 0; i < 3; i++) if (v[i] !== min[i]) return v[i] > min[i];
-  return true;
-};
 
 function readDotenv(path) {
   if (!existsSync(path)) return {};
@@ -95,22 +85,6 @@ async function ollamaUp() {
   }
 }
 
-/** A Node install new enough for Angular, from nvm-windows (NVM_HOME) or nvm (NVM_DIR), or null. */
-function findAngularNode() {
-  const roots = [process.env.NVM_HOME, process.env.NVM_DIR && join(process.env.NVM_DIR, 'versions', 'node')].filter(Boolean);
-  for (const root of roots) {
-    if (!existsSync(root)) continue;
-    const dirs = readdirSync(root)
-      .filter(d => /^v\d+\.\d+\.\d+$/.test(d) && atLeast(parseVersion(d), ANGULAR_MIN))
-      .sort((a, b) => (atLeast(parseVersion(a), parseVersion(b)) ? -1 : 1));
-    for (const d of dirs) {
-      const bin = WIN ? join(root, d) : join(root, d, 'bin');
-      if (existsSync(join(bin, WIN ? 'node.exe' : 'node'))) return { version: d, bin };
-    }
-  }
-  return null;
-}
-
 const has = cmd => spawnSync(WIN ? 'where' : 'which', [cmd], { stdio: 'ignore' }).status === 0;
 
 // ---------------------------------------------------------------- preflight
@@ -129,7 +103,7 @@ if (wanted.includes('api')) {
     } else if (dotenv.DATABASE_URL && prodDb) {
       warn('--prod-db: the local API is writing to the database in backend/.env. Runs, theses and approvals land there.');
     }
-    if (process.env.CORS_ORIGINS === undefined) apiEnv.CORS_ORIGINS = 'http://localhost:5173,http://localhost:4200';
+    if (process.env.CORS_ORIGINS === undefined) apiEnv.CORS_ORIGINS = 'http://localhost:5173';
     if (dotenv.AXIOM_API_TOKEN) note('backend/.env sets AXIOM_API_TOKEN: paste it with the key icon in the terminal to unlock writes.');
     if (!dotenv.GROQ_API_KEY && !dotenv.GEMINI_API_KEY && !dotenv.OPENROUTER_API_KEY && !dotenv.CEREBRAS_API_KEY && !(await ollamaUp())) {
       warn('No LLM key in backend/.env and Ollama is not answering on :11434. Charts work, analysis will fail.');
@@ -141,27 +115,6 @@ if (wanted.includes('api')) {
 if (wanted.includes('terminal')) {
   if (!existsSync(join(ROOT, 'node_modules'))) warn('No node_modules at the repo root: run "npm install" first.');
   plan.push({ ...PARTS.terminal, env: { ...env, VITE_API_BASE_URL: process.env.VITE_API_BASE_URL ?? 'http://localhost:8000' } });
-}
-
-if (wanted.includes('watch')) {
-  const current = parseVersion(process.versions.node);
-  let watchEnv = env;
-  let ok = current[0] >= 24 || atLeast(current, ANGULAR_MIN);
-  if (!ok) {
-    const alt = findAngularNode();
-    if (alt) {
-      const key = Object.keys(env).find(k => k.toUpperCase() === 'PATH') ?? 'PATH';
-      watchEnv = { ...env, [key]: `${alt.bin}${WIN ? ';' : ':'}${env[key]}` };
-      note(`Node ${process.versions.node} is too old for Angular; Axiom Watch uses ${alt.version} from nvm.`);
-      ok = true;
-    } else {
-      warn(`Skipping watch: Angular needs Node 24 or ${ANGULAR_MIN.join('.')}+, this is ${process.versions.node}. "nvm install 24" fixes it.`);
-    }
-  }
-  if (ok) {
-    if (!existsSync(join(ROOT, 'angular', 'node_modules'))) warn('No angular/node_modules: run "npm install" inside angular/ first.');
-    plan.push({ ...PARTS.watch, env: watchEnv });
-  }
 }
 
 const runnable = [];

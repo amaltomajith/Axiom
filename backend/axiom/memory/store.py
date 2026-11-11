@@ -46,12 +46,6 @@ CREATE TABLE IF NOT EXISTS usage (
   key TEXT NOT NULL, bucket TEXT NOT NULL, n INTEGER NOT NULL, PRIMARY KEY (key, bucket));
 """
 
-# Per-visitor watchlists for the public Angular app. Separate from `watchlist`, which feeds the daily cron.
-VISITOR_SCHEMA = """
-CREATE TABLE IF NOT EXISTS visitor_watchlist (
-  visitor TEXT NOT NULL, ticker TEXT NOT NULL, added_at REAL NOT NULL, PRIMARY KEY (visitor, ticker));
-"""
-
 _RUN_COLS = ["run_id", "ticker", "created_at", "result_json", "events_json"]
 _OUTCOME_COLS = ["thesis_id", "scored_at", "horizon_date", "price_at_horizon", "ret_pct", "benchmark_ret_pct",
                  "excess_ret_pct", "direction_hit", "beat_benchmark", "stop_hit", "brier", "detail_json"]  # fmt: skip
@@ -66,7 +60,7 @@ class Store:
     def __init__(self, path: Path | None = None, url: str | None = None):
         self.db = Db(url=url, path=None if url else Path(path or _default_path()))
         self.path = self.db.path
-        self.db.init_schema(SCHEMA + USAGE_SCHEMA + VISITOR_SCHEMA)
+        self.db.init_schema(SCHEMA + USAGE_SCHEMA)
 
     def _conn(self):
         return self.db.connect()
@@ -96,7 +90,7 @@ class Store:
 
     # ---------------------------------------------------------------- status
     def counts(self) -> dict[str, Any]:
-        """Aggregate counts for the public status page. Numbers only: no tickers per visitor, no ids."""
+        """Aggregate counts for the public status page. Numbers only, no ids."""
         with self._conn() as c:
 
             def one(sql: str) -> Any:
@@ -276,34 +270,6 @@ class Store:
     def watch_remove(self, ticker: str) -> None:
         with self._conn() as c:
             c.execute("DELETE FROM watchlist WHERE ticker=?", (ticker,))
-
-    def visitor_watchlist(self, visitor: str) -> list[dict]:
-        with self._conn() as c:
-            rows = c.execute(
-                "SELECT ticker, added_at FROM visitor_watchlist WHERE visitor=? ORDER BY added_at", (visitor,)
-            ).fetchall()
-        return [dict(r) for r in rows]
-
-    def visitor_watch_add(self, visitor: str, ticker: str, cap: int) -> bool:
-        """Add `ticker` to one visitor's list. False (nothing written) when the list already holds `cap`
-        other tickers; re-adding a listed ticker is a no-op that succeeds."""
-        with self._conn() as c:
-            listed = c.execute(
-                "SELECT COUNT(*) AS n, SUM(CASE WHEN ticker=? THEN 1 ELSE 0 END) AS mine"
-                " FROM visitor_watchlist WHERE visitor=?",
-                (ticker, visitor),
-            ).fetchone()
-            if not listed["mine"] and int(listed["n"]) >= cap:
-                return False
-            c.execute(
-                "INSERT INTO visitor_watchlist VALUES (?,?,?) ON CONFLICT DO NOTHING",
-                (visitor, ticker, time.time()),
-            )
-        return True
-
-    def visitor_watch_remove(self, visitor: str, ticker: str) -> None:
-        with self._conn() as c:
-            c.execute("DELETE FROM visitor_watchlist WHERE visitor=? AND ticker=?", (visitor, ticker))
 
     def add_trade(self, trade: dict) -> str:
         tid = uuid.uuid4().hex[:12]

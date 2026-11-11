@@ -1,4 +1,4 @@
-"""/api/status: the hub page's one call. Config from /api/health plus store counts, nothing secret."""
+"""/api/status: one public call. Config from /api/health plus store counts, nothing secret."""
 
 import json
 from datetime import UTC, datetime
@@ -27,7 +27,6 @@ def test_status_counts_what_the_store_holds(monkeypatch):
     st.save_run("r1", "AAPL", {"memo": {"rating": "HOLD"}}, [])
     st.save_run("r2", "MSFT", {"memo": {"rating": "BUY"}}, [])
     st.watch_add("AAPL")
-    st.visitor_watch_add("visitor-123", "NVDA", cap=25)
     st.hit("global", datetime.now(UTC).strftime("%Y%m%d"), 40)
 
     body = c.get("/api/status").json()
@@ -35,7 +34,7 @@ def test_status_counts_what_the_store_holds(monkeypatch):
     assert body["counts"]["watchlist"] == 1
     assert body["analyses_today"] == {"used": 1, "cap": 40}
     dumped = json.dumps(body)
-    assert "super-secret" not in dumped and "visitor-123" not in dumped
+    assert "super-secret" not in dumped
 
 
 def test_health_is_unchanged_by_status():
