@@ -217,3 +217,12 @@ def test_cli_backtest_writes_markdown_and_json(tmp_path, monkeypatch):
     assert e.value.code == 0
     assert out.read_text(encoding="utf-8").startswith("# Axiom Autopilot backtest")
     assert json.loads(out.with_suffix(".json").read_text(encoding="utf-8"))["universe"] == ["SPY", "BTC/USD"]
+
+
+async def test_regimes_survive_a_restart_until_the_next_strategy_check():
+    eng, broker, led, book = live_like()
+    await _tick(eng, broker, book, 280)
+    seen = eng.regimes()
+    assert seen["SPY"] and "trend" in seen["SPY"]
+    again = build_engine(["SPY"], session="live-test", broker=broker, ledger=led, brain=AlwaysEnter())
+    assert again.rankings == {} and again.regimes() == seen

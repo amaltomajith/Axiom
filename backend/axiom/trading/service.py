@@ -231,7 +231,7 @@ class TraderService:
             "ladder": ladder,
             "llm_calls_left": getattr(eng.brain, "calls_left", lambda: None)(),
             "desk_runs_left": getattr(eng.brain, "runs_left", lambda: None)(),
-            "regimes": {sym: r.regime for sym, r in eng.rankings.items()},
+            "regimes": eng.regimes(),
         }
 
     def desk(self) -> dict:

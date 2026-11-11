@@ -90,6 +90,8 @@ class Engine:
         self.listeners: list[Callable[[dict], None]] = []
         self.last_decisions: dict[str, dict] = {}
         saved = ledger.get_state("engine") or {}
+        # Rankings are rebuilt on the next completed bar; until then show the regimes from before the restart.
+        self.saved_regimes: dict[str, dict] = dict(ledger.get_state("regimes") or {})
         self.st: dict[str, Any] = {
             "day": None,
             "day_start_equity": None,
@@ -120,8 +122,14 @@ class Engine:
         self.emit("journal", entry=e.model_dump())
         return e
 
+    def regimes(self) -> dict[str, dict]:
+        """Market regime per symbol from the latest strategy check, or the saved one right after a restart."""
+        return {**self.saved_regimes, **{sym: r.regime for sym, r in self.rankings.items()}}
+
     def _save(self) -> None:
         self.ledger.set_state("engine", self.st)
+        if self.rankings:
+            self.ledger.set_state("regimes", self.regimes())
 
     # ------------------------------------------------------------- properties
     @property
