@@ -25,6 +25,8 @@ def entry(intent: OrderIntent, v: RiskVerdict, dec: Decision, equity: float) -> 
     who = (
         "The LLM brain"
         if intent.source == "llm"
+        else "The trading desk"
+        if dec.source == "desk"
         else "A human"
         if intent.source == "human"
         else "The rule brain"
@@ -45,6 +47,13 @@ def entry(intent: OrderIntent, v: RiskVerdict, dec: Decision, equity: float) -> 
 
 def veto(dec: Decision) -> str:
     return f"Did not buy {dec.symbol}. {dec.reason.rstrip('.')}. The rule brain alone would have entered."
+
+
+def reviewed(dec: Decision) -> str:
+    """One line for the proposal a human is asked to approve, when the desk reviewed it."""
+    d = dec.desk or {}
+    size = f" It asked for {dec.size_factor:.0%} of the size the risk rules allow." if dec.size_factor else ""
+    return f" The trading desk rated it {d.get('rating')} with conviction {d.get('conviction')}.{size}"
 
 
 def exit_(o: Order, f: dict) -> str:

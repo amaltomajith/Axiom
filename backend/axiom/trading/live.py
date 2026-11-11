@@ -45,7 +45,11 @@ def periods_per_year(symbols: list[Symbol], bar_seconds: float) -> int:
     return int(round((365 if crypto else 252) * hours * 3600 / bar_seconds))
 
 
-def make_brain(kind: str) -> Brain:
+def make_brain(kind: str, *, bar_seconds: float = 3600.0) -> Brain:
+    if kind == "desk":
+        from .desk import DeskBrain
+
+        return DeskBrain.from_settings(bar_seconds=bar_seconds)
     if kind == "llm":
         from .llm_brain import LLMBrain
 
@@ -110,7 +114,7 @@ class Trader:
         ledger = StoreLedger(store or get_store(), "live")
         engine = build_engine(
             [x.name for x in symbols], session="live", broker=broker, ledger=ledger,
-            brain=brain or make_brain(s.trader_brain), autonomy=s.trader_autonomy_start,  # type: ignore[arg-type]
+            brain=brain or make_brain(s.trader_brain, bar_seconds=bar_s), autonomy=s.trader_autonomy_start,  # type: ignore[arg-type]
             bar_seconds=bar_s, periods_per_year=periods_per_year(symbols, bar_s), kill_file=KILL_FILE,
             contracts=ContractBook(), ladder=AutonomyLadder(),
         )  # fmt: skip
@@ -189,6 +193,9 @@ class Trader:
             index[name] = len(b) - 1
             decided[name] = last_ts
         decisions = await eng.step(now, index)
+        for d in decisions:
+            if d.reviewing:
+                decided.pop(d.symbol, None)  # the desk is not done: decide this bar again on the next tick
         eng.ledger.set_state("last_decided", decided)
         self.last_tick = now
         return {"decided": list(index), "decisions": [d.model_dump() for d in decisions]}

@@ -547,3 +547,29 @@ def test_repair_hints_only_look_inside_the_cited_agents_own_evidence_block():
     )  # other agent's block is invisible
     (unknown,) = check_claim(Claim(text="Price is 340.97", evidence=["T199"]), ev)
     assert "T101" in unknown and "T201" not in unknown
+
+
+async def test_the_trading_desk_runs_the_same_pipeline_on_a_candidate_entry():
+    """`DeskBrain` with its real defaults (the orchestrator and the in-process MCP server), scripted LLM."""
+    from axiom.trading.brain import MarketView, RuleBrain
+    from axiom.trading.desk import DeskBrain
+    from axiom.trading.tournament import Ranking, Standing
+
+    seen = []
+    brain = DeskBrain(
+        RuleBrain(), llm_factory=lambda: ScriptedLLM(good_handler(), budget=TokenBudget(10**6, 100))
+    )
+    brain.listeners.append(seen.append)
+    r = Ranking("AAPL", 300, 1.7e9, 0.7, 0.10, {"trend": "uptrend", "volatility": "normal"},
+                [Standing("sma_cross", 1.4, 0.22, -0.08, 6, True, "qualified")])  # fmt: skip
+    view = MarketView(symbol="AAPL", kind="equity", ts=1.7e9, price=200.0, atr=4.0, ranking=r,
+                      signals_now={"sma_cross": 1.0}, signals_prev={"sma_cross": 1.0})  # fmt: skip
+    d = await brain.decide(view)
+    assert d.source == "desk" and not d.degraded and d.desk["rating"] in {"BUY", "HOLD"}
+    assert d.action == ("enter_long" if d.desk["rating"] == "BUY" else "stay_flat")
+    assert set(d.desk["stances"]) == {"Technical Analyst", "Fundamental Auditor"}
+    assert d.desk["critic_ok"] is True and d.desk["evidence"]
+    kinds = {e.get("kind") for e in seen}
+    assert {"run_start", "tool_call", "finding", "critique", "final"} <= kinds and seen[-1][
+        "type"
+    ] == "desk_done"

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 AssetKind = Literal["crypto", "equity"]
 Side = Literal["buy", "sell"]
 IntentAction = Literal["enter_long", "exit"]
-IntentSource = Literal["rule", "llm", "human", "redteam"]
+IntentSource = Literal["rule", "llm", "desk", "human", "redteam"]
 OrderStatus = Literal["new", "filled", "partially_filled", "canceled", "rejected"]
 Autonomy = Literal["SHADOW", "SUPERVISED", "AUTONOMOUS"]
 AUTONOMY_LEVELS: tuple[Autonomy, ...] = ("SHADOW", "SUPERVISED", "AUTONOMOUS")
@@ -40,7 +40,7 @@ class OrderIntent(BaseModel):
     strategy: str | None = None
     confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     source: IntentSource = "rule"
-    # Only the red-team button and a human may ask for a size; the kernel blocks anything above its own size.
+    # The red-team button, a human or the desk may ask for a size; the kernel blocks anything above its own.
     requested_qty: float | None = Field(default=None, gt=0)
     contract_id: str | None = None
 

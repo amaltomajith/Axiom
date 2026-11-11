@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     alpaca_secret_key: str | None = None
     trader_enabled: bool = False  # start the trading loop with the API process
     trader_broker: str = "sim"  # sim | alpaca
-    trader_brain: str = "rule"  # rule | llm
+    trader_brain: str = "rule"  # rule | llm | desk
     trader_symbols: str = "BTC/USD,ETH/USD,SPY,QQQ,AAPL,NVDA,MSFT"
     trader_timeframe: str = "1Hour"  # live bars: 15Min | 1Hour | 1Day
     trader_interval_seconds: int = 60  # how often the live loop ticks
@@ -91,6 +91,8 @@ class Settings(BaseSettings):
     trader_equity_cost_bps: float = 5.0
     trader_slippage_bps: float = 5.0
     trader_max_llm_calls_per_hour: int = 20
+    trader_max_desk_runs_per_hour: int = 6  # each run is one full four-agent review of a candidate entry
+    trader_desk_hold: str = "veto"  # what a HOLD rating does to an entry: veto | half
 
     # --- server
     # Bearer token for mutating endpoints; REQUIRED when real actions are enabled.

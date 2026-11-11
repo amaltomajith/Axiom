@@ -102,6 +102,9 @@ class TraderService:
                 self.build_error = f"{type(e).__name__}: {e}"[:300]
                 return None
             t.engine.listeners.append(lambda ev: self.hub.publish({**ev, "session": "live"}))
+            desk_listeners = getattr(t.engine.brain, "listeners", None)
+            if desk_listeners is not None:  # the desk streams each agent step to the cockpit
+                desk_listeners.append(lambda ev: self.hub.publish({**ev, "session": "live"}))
             self._trader = t
         return self._trader
 
@@ -162,7 +165,14 @@ class TraderService:
             },
             "ladder": ladder,
             "llm_calls_left": getattr(eng.brain, "calls_left", lambda: None)(),
+            "desk_runs_left": getattr(eng.brain, "runs_left", lambda: None)(),
         }
+
+    def desk(self) -> dict:
+        """The trading desk's latest review per symbol, with the agent steps the cockpit replays."""
+        t = self.trader()
+        status = getattr(t.engine.brain, "status", None) if t is not None else None
+        return {"enabled": True, **status()} if status else {"enabled": False, "runs": {}, "reviewing": []}
 
     async def positions(self) -> list[dict]:
         t = self.need()

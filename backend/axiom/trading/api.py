@@ -114,6 +114,10 @@ def build_router(svc: TraderService) -> APIRouter:
     async def tournament():
         return svc.tournament()
 
+    @r.get("/desk")
+    async def desk():
+        return svc.desk()
+
     @r.get("/backtest/report")
     async def backtest_report():
         rep = svc.backtest_report()

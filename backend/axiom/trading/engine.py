@@ -12,6 +12,7 @@ Nothing here knows whether the broker is simulated or Alpaca, or whether the led
 from __future__ import annotations
 
 import hashlib
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -297,7 +298,7 @@ class Engine:
                         self.st["last_veto"][sym] = dec.strategy
                         self.journal("veto", jt.veto(dec), ts=now, symbol=sym,
                                      facts={"strategy": dec.strategy, "confidence": dec.confidence,
-                                            "source": dec.source})  # fmt: skip
+                                            "source": dec.source, **_desk(dec)})  # fmt: skip
                 continue
             self.st.setdefault("last_veto", {}).pop(sym, None)
             if dec.action == "exit":
@@ -312,6 +313,12 @@ class Engine:
             verdict = self.kernel.review(
                 intent, acct, self._ctx(sym, price, now, acct, data_age=now - book.ts[i])
             )
+            if verdict.approved and dec.size_factor is not None and dec.size_factor < 1.0:
+                # The desk asked for less. The kernel's own size is the ceiling; a request can only go under it.
+                intent.requested_qty = _scaled(verdict.qty, dec.size_factor, parse(sym).kind)
+                verdict = self.kernel.review(
+                    intent, acct, self._ctx(sym, price, now, acct, data_age=now - book.ts[i])
+                )
             if not verdict.approved:
                 if verdict.blocked_by == "R12" and self.level == "SHADOW" and self.contracts is not None:
                     self.contracts.open_shadow(self, intent, verdict, dec, now)
@@ -327,8 +334,9 @@ class Engine:
                     item = {"id": new_id("p-"), "created_at": now, "intent": intent.model_dump(),
                             "verdict": verdict.model_dump(), "decision": dec.model_dump()}  # fmt: skip
                     self.st["pending"].append(item)
-                    self.journal("proposal", jt.proposal(intent, verdict), ts=now, symbol=sym,
-                                 facts=_vfacts(intent, verdict))  # fmt: skip
+                    self.journal("proposal", jt.proposal(intent, verdict) + (jt.reviewed(dec) if dec.desk else ""),
+                                 ts=now, symbol=sym,
+                                 facts={**_vfacts(intent, verdict), **_desk(dec)})  # fmt: skip
                     self.emit("pending", item=item)
                 continue
             await self._submit_entry(intent, verdict, dec, now, acct)
@@ -374,10 +382,10 @@ class Engine:
         }  # fmt: skip
         facts = {**_vfacts(intent, v), "order_id": order.id, "contract_id": intent.contract_id,
                  "equity": round(acct.equity, 2), "expected_move_pct": dec.expected_move_pct,
-                 "horizon_bars": dec.horizon_bars}  # fmt: skip
+                 "horizon_bars": dec.horizon_bars, **_desk(dec)}  # fmt: skip
         text = jt.entry(intent, v, dec, acct.equity)
         narrate = getattr(self.brain, "narrate", None)
-        if narrate is not None and dec.source == "llm":
+        if narrate is not None and dec.source in ("llm", "desk"):
             plain, accepted, bad = await narrate(text, facts)
             facts["template"] = text
             facts["rewrite"] = "accepted" if accepted else ("discarded" if bad else "not used")
@@ -458,6 +466,17 @@ class Engine:
             "rankings": {s: r.to_dict() for s, r in self.rankings.items()},
             "last_decisions": self.last_decisions,
         }
+
+
+def _desk(dec: Decision) -> dict:
+    return {"desk": dec.desk, "size_factor": dec.size_factor} if dec.desk else {}
+
+
+def _scaled(qty: float, factor: float, kind: str) -> float:
+    """A smaller size than the kernel's: whole shares for equities (never below one), six decimals for crypto."""
+    if kind == "equity":
+        return float(max(1, math.floor(qty * factor)))
+    return max(1e-6, math.floor(qty * factor * 1e6) / 1e6)
 
 
 def _vfacts(intent: OrderIntent, v: RiskVerdict) -> dict:

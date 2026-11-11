@@ -1,7 +1,8 @@
 """Brains decide what to do with one symbol at one bar. They never size, never place orders.
 
 `RuleBrain` trades the tournament's best qualified strategy. `LLMBrain` (`llm_brain.py`) may only choose
-among qualified strategies or stay flat, and falls back to `RuleBrain` on any failure.
+among qualified strategies or stay flat, and falls back to `RuleBrain` on any failure. `DeskBrain`
+(`desk.py`) has the four research agents review a candidate entry: they may veto it or ask for less size.
 """
 
 from __future__ import annotations
@@ -9,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal, Protocol
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .models import AssetKind, Position
 from .tournament import Ranking
@@ -24,13 +25,17 @@ class Decision(BaseModel):
     strategy: str | None = None
     reason: str = ""
     confidence: float | None = None  # stated probability the trade ends in profit
-    source: Literal["rule", "llm"] = "rule"
+    source: Literal["rule", "llm", "desk"] = "rule"
     degraded: bool = False  # the LLM failed and the rule brain decided instead
     thesis: str | None = None
     expected_move_pct: float | None = None
     horizon_bars: int | None = None
     veto: bool = False  # the LLM declined an entry the rule brain would have taken
     flags: list[str] = []  # things the journal must record: redacted headlines, discarded thesis numbers
+    # Set by the trading desk (`desk.py`). `size_factor` can only shrink the kernel's size, never grow it.
+    size_factor: float | None = Field(default=None, gt=0.0, le=1.0)
+    desk: dict | None = None  # the agents' review: rating, conviction, stances, critic, evidence ids
+    reviewing: bool = False  # the desk has not finished; ask again on the next tick for the same bar
 
 
 @dataclass
