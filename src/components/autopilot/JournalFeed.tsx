@@ -33,12 +33,14 @@ const KIND: Record<JournalKind, { label: string; variant: Variant }> = {
   flag: { label: 'Flagged', variant: 'destructive' },
 };
 
+const ALERT: { label: string; variant: Variant } = { label: 'Alert', variant: 'warning' };
+
 type Filter = 'all' | 'trades' | 'guardrails';
 const TRADES: JournalKind[] = ['entry', 'exit', 'stop', 'contract', 'shadow', 'proposal'];
 const GUARDRAILS: JournalKind[] = ['blocked', 'halt', 'kill', 'resume', 'veto', 'flag', 'autonomy'];
 
 function Row({ e }: { e: JournalEntry }) {
-  const k = KIND[e.kind] ?? KIND.note;
+  const k = e.kind === 'note' && e.facts.alert ? ALERT : (KIND[e.kind] ?? KIND.note);
   const desk = e.facts.desk as DeskReview | undefined;
   return (
     <li className="px-5 py-3 sm:px-6">

@@ -372,6 +372,8 @@ export interface TraderStatus {
   last_error?: string | null;
   broker_warning?: string | null;
   symbol_errors?: Record<string, string>;
+  /** Latest unusual bar per symbol: volume or range against its recent average. */
+  alerts?: Record<string, { volume_x?: number; range_x?: number; move_pct: number; close: number; bar_ts: number; ts: number }>;
   benchmark_value?: number | null;
   pending?: PendingEntry[];
   account?: { equity: number; cash: number; positions: number; is_paper: boolean };
@@ -449,9 +451,7 @@ export interface TraderPosition {
   entry_ts: number | null;
 }
 
-export type JournalKind =
-  | 'entry' | 'exit' | 'stop' | 'blocked' | 'proposal' | 'tournament' | 'halt' | 'kill' | 'resume'
-  | 'autonomy' | 'note' | 'contract' | 'shadow' | 'veto' | 'flag';
+export type JournalKind = 'entry' | 'exit' | 'stop' | 'blocked' | 'proposal' | 'tournament' | 'halt' | 'kill' | 'resume' | 'autonomy' | 'note' | 'contract' | 'shadow' | 'veto' | 'flag';
 
 export interface JournalEntry {
   session: string;

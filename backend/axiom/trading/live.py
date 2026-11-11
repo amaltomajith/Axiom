@@ -18,6 +18,7 @@ import pandas as pd
 from axiom.config import get_settings
 from axiom.data import market
 
+from . import alerts
 from .autonomy import AutonomyLadder
 from .brain import Brain, RuleBrain
 from .broker.alpaca import AlpacaPaperBroker
@@ -78,6 +79,7 @@ class Trader:
         self.last_tick: float | None = None
         self.last_error: str | None = None
         self.symbol_errors: dict[str, str] = {}
+        self.alerts: dict[str, dict] = {}  # symbol -> the latest alert, with its bar time
         self.running = False
         self._stop = asyncio.Event()
         self.task: asyncio.Task | None = None
@@ -195,6 +197,7 @@ class Trader:
                     continue  # equities only decide while the market is open; stops stay at the broker
             index[name] = len(b) - 1
             decided[name] = last_ts
+            self._alert(name, b, last_ts, now)
         decisions = await eng.step(now, index)
         for d in decisions:
             if d.reviewing:
@@ -202,6 +205,18 @@ class Trader:
         eng.ledger.set_state("last_decided", decided)
         self.last_tick = now
         return {"decided": list(index), "decisions": [d.model_dump() for d in decisions]}
+
+    def _alert(self, name: str, book: SignalBook, bar_ts: float, now: float) -> None:
+        """A volume or range spike on the bar that just closed: journal it once and force a fresh desk review."""
+        a = alerts.detect(book.df)
+        if a is None or self.alerts.get(name, {}).get("bar_ts") == bar_ts:
+            return
+        self.alerts[name] = {**a, "bar_ts": bar_ts, "ts": now}
+        job = getattr(self.engine.brain, "jobs", {}).pop(name, None)
+        if job is not None:
+            job.task.cancel()
+        self.engine.journal("note", alerts.describe(name, a), ts=now, symbol=name, facts={"alert": a})
+        self.engine.emit("state")
 
     def _benchmark(self, books: dict[str, SignalBook]) -> None:
         led = self.engine.ledger
@@ -281,5 +296,6 @@ class Trader:
             "last_error": self.last_error,
             "broker_warning": getattr(self.broker, "stop_error", None),
             "symbol_errors": self.symbol_errors,
+            "alerts": self.alerts,
             "benchmark_value": self.engine.benchmark_value,
         }

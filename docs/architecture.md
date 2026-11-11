@@ -3,10 +3,23 @@
 ## Autopilot: the trading agent
 
 ```
-bars + news ──> tournament ──> Brain.decide ──> OrderIntent ──> RiskKernel.review ──> Broker ──> journal
-(data.py)     (qualified set)  (Rule | LLM)    (no quantity)    (sizes, or blocks)   (Sim | Alpaca paper)
-                                    └── trade contract ── graded at close ── calibration ── autonomy ladder
+ TRIGGERS                 TRADING DESK (LLM agents)                 POLICY GATE (plain code)        BROKER
+ watchlist alert   ┐      Technical Analyst  ┐                      1 paper account only
+ schedule (a bar)  ├──>   Fundamental Auditor├─> Synthesizer ─>     2 stop-loss attached           Alpaca paper
+ manual run / MCP  ┘      Risk Guard         ┘   then Critic        3 size within caps        ──>  (or SimBroker)
+        │                        │                    │             4 day loss under 2.5%               │
+        v                        v                    v             5 kill switch is off                v
+   tournament            16 MCP tools           OrderIntent  ──>    6 journal numbers verified      journal, sha256
+ (which strategies       (11 research,          (a stop, and        human approval in Supervised    chained; trade
+  may trade at all)       5 paper trading)       no quantity)       mode; the kernel sets the size  contract graded
+                                 ^                                                                       │
+                                 └────── memory: this run, the portfolio, past outcomes by regime <──────┘
 ```
+
+The diagram is the trading desk as the deck draws it. The six gate checks are groups over the kernel's rules:
+paper only (R1), stop attached (R5), size within caps (R6 to R9), day loss (R3), kill switch (R0), and the journal's
+number check. The remaining rules (allowlist, stale data, trades per day, cool-down, autonomy level) are also
+enforced and shown in the cockpit as "also checked".
 
 All in `backend/axiom/trading/`. `Engine.step` is the single decision path: the live loop (`live.py`) calls it on a
 timer and the Time Machine (`replay.py`) calls it bar by bar over history through `SimBroker`, so a backtest cannot
@@ -16,6 +29,10 @@ use information a live run would not have had.
 |---|---|---|
 | `tournament.py` | Every 21 bars, scores 5 strategies on the trailing 252 bars net of costs; only qualifiers may trade | price history only |
 | `brain.py`, `llm_brain.py` | Turns signals into an `OrderIntent` with a stop and no quantity. The LLM brain may only pick a qualified, signalling strategy or stay flat; its output schema forbids extra fields and its thesis numbers are checked against the facts given. Any failure falls back to the rule brain, marked degraded | the tournament |
+| `desk.py` | `DeskBrain` (`TRADER_BRAIN=desk`) wraps the rule brain. For each candidate entry it runs the research pipeline (`agents/orchestrator.analyze`, unchanged) in the background and maps the memo to a decision: Sell vetoes; Hold vetoes or halves (`TRADER_DESK_HOLD`); Buy goes ahead, at half size if the Critic objected or conviction is under 0.5. Failure, timeout or the hourly cap falls back to the rule brain, marked degraded. A review is cached per symbol for four hours | the tournament; never sets a quantity |
+| `alerts.py` | Flags a completed bar with 2.5 times the usual volume or range. The live loop journals it once and drops the cached desk review for that symbol. An alert never trades | price history only |
+| `mcp_tools.py` | The five paper-trading MCP tools. Orders take no quantity and go through `Engine.propose`, so the kernel sizes or blocks them and Supervised mode queues them for a human. `modify_stop_loss` only moves a stop up | the kernel |
+| `scenarios.py` | Three windows of real daily history replayed through the same engine: breakout, flash crash, trojan headline. Each has an expected outcome that the replay must reach | price history only |
 | `risk.py` | `RiskKernel.review`: pure code, rules R0 to R12 (kill switch, paper only, allowlist, daily loss halt, stale data, mandatory stop, sizing at 1% risk, 20% position cap, gross exposure, max positions, trades per day, cooldown after a stop, autonomy level). Exits that reduce risk are always allowed | nothing the LLM says |
 | `broker/` | `SimBroker` (next-bar fills, fees, slippage) and `AlpacaPaperBroker` (`paper=True` hard-coded, idempotent client order ids, partial fills, native stops) | |
 | `contracts.py` | Opens a contract per entry (confidence, expected move, horizon, invalidations), grades it at close (A to D, Brier), and keeps calibration buckets. In `SHADOW` mode it opens virtual contracts | |

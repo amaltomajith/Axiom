@@ -239,6 +239,38 @@ async def test_live_tick_decides_once_per_completed_bar(tmp_path, monkeypatch):
     assert any("Autopilot started" in e.text for e in t.engine.ledger.journal_all())
 
 
+async def test_a_volume_spike_is_journaled_once_and_drops_the_cached_desk_review(tmp_path, monkeypatch):
+    from axiom.trading import alerts
+
+    calm, spiky = hourly(seed=5), hourly(seed=6)
+    assert alerts.detect(calm) is None
+    spiky["volume"] = spiky["volume"].astype(float)
+    spiky.iloc[-1, spiky.columns.get_loc("volume")] = float(spiky["volume"].iloc[-21:-1].mean()) * 4
+    a = alerts.detect(spiky)
+    assert a is not None and a["volume_x"] == 4.0 and "range_x" not in a
+    assert alerts.detect(spiky.iloc[:-1]) is None  # only the bar that just closed counts
+
+    data = {"BTC/USD": calm, "ETH/USD": spiky}
+
+    async def fetch(sym):
+        return data[sym.name]
+
+    t = trader(tmp_path, fetch, monkeypatch)
+    cancelled = []
+    t.engine.brain.jobs = {
+        "ETH/USD": SimpleNamespace(task=SimpleNamespace(cancel=lambda: cancelled.append(1)))
+    }
+    await t.start()
+    await t.tick()
+    await t.tick()
+    notes = [e for e in t.engine.ledger.journal_all() if (e.facts or {}).get("alert")]
+    assert (
+        len(notes) == 1 and notes[0].symbol == "ETH/USD" and "4.0 times its 20-bar average" in notes[0].text
+    )
+    assert cancelled == [1] and t.engine.brain.jobs == {}
+    assert list(t.status()["alerts"]) == ["ETH/USD"]
+
+
 async def test_watchdog_halts_and_flattens_after_three_failed_ticks(tmp_path, monkeypatch):
     calls = {"n": 0}
     good = {"BTC/USD": hourly(seed=5), "ETH/USD": hourly(seed=6)}

@@ -37,13 +37,32 @@ Ollama model, plus Alpaca's free paper account and data. Nebius Token Factory cr
    veto. Its numbers are checked against the facts it was given; any failure falls back to the rule brain. It is never
    backtested over history (models remember the past), only judged forward on paper by its contracts.
 5. **Red team button.** Fires an absurd order and a poisoned headline at the agent, live, and shows both being stopped.
-6. **Reports that can say no.** The current report's verdict is `no_edge`: the agent made +4.9% over 3.4 years against
+6. **A four-agent trading desk** (`TRADER_BRAIN=desk`). When a strategy wants to buy, the Technical Analyst,
+   Fundamental Auditor and Risk Guard research the symbol through MCP tools, the Synthesizer writes the plan and the
+   Critic challenges it. The desk can veto the trade or halve its size. It can never raise the size or skip a rule.
+   If the agents fail, time out or hit the hourly cap, the rules decide and the entry is marked degraded.
+7. **16 MCP tools, 5 of them for paper trading.** `place_paper_bracket_order` takes no quantity and goes through the
+   same kernel (in Supervised mode it waits for a human), `modify_stop_loss` can only tighten, plus
+   `close_paper_position`, `emergency_flatten_all` and `get_past_trade_outcomes` (results by market regime).
+8. **Three replayable scenarios** cut from real price history: a breakout that ends in a graded contract, a crash
+   that trips the daily loss halt, and a poisoned headline that is flagged and ignored.
+9. **Watchlist alerts.** A bar with 2.5 times the usual volume or range is journaled, and any saved desk review for
+   that symbol is dropped so the next idea is reviewed afresh. An alert never trades.
+10. **Reports that can say no.** The current report's verdict is `no_edge`: the agent made +4.9% over 3.4 years against
    +123.8% for buy-and-hold, with a smaller drawdown (-23.4% against -31.3%). It is published anyway.
 
 ```
-bars + news ──> tournament ──> Brain.decide ──> OrderIntent ──> RiskKernel.review ──> Broker ──> journal
-(data.py)     (qualified set)  (Rule | LLM)    (no quantity)    (sizes, or blocks)   (Sim | Alpaca paper)
-                                    └── trade contract ── graded at close ── calibration ── autonomy ladder
+ TRIGGERS                 TRADING DESK (LLM agents)                 POLICY GATE (plain code)        BROKER
+ watchlist alert   ┐      Technical Analyst  ┐                      1 paper account only
+ schedule (a bar)  ├──>   Fundamental Auditor├─> Synthesizer ─>     2 stop-loss attached           Alpaca paper
+ manual run / MCP  ┘      Risk Guard         ┘   then Critic        3 size within caps        ──>  (or SimBroker)
+        │                        │                    │             4 day loss under 2.5%               │
+        v                        v                    v             5 kill switch is off                v
+   tournament            16 MCP tools           OrderIntent  ──>    6 journal numbers verified      journal, sha256
+ (which strategies       (11 research,          (a stop, and        human approval in Supervised    chained; trade
+  may trade at all)       5 paper trading)       no quantity)       mode; the kernel sets the size  contract graded
+                                 ^                                                                       │
+                                 └────── memory: this run, the portfolio, past outcomes by regime <──────┘
 ```
 
 More in [docs/architecture.md](docs/architecture.md).
@@ -63,7 +82,7 @@ kill switch, approval queue, positions with stops, the journal, equity against b
 calibration, the backtest report and the Time Machine. With no keys at all it runs on `SimBroker` and the rule brain.
 
 The research terminal Axiom started as is still there (Analyze, Backtest, Watchlist, Scorecard, Actions tabs): agents
-that research a stock through 11 MCP tools and cite every number. See [docs/mcp-clients.md](docs/mcp-clients.md) and
+that research a stock through 11 MCP research tools and cite every number. See [docs/mcp-clients.md](docs/mcp-clients.md) and
 [docs/eval-report.md](docs/eval-report.md).
 
 ### Trading commands (inside `backend/`)
@@ -110,6 +129,10 @@ Tests never touch the network: `SimBroker`, a fake `TradingClient`, `ScriptedLLM
   ladder and the calibration chart say how many there are.
 - Alpaca paper fills are simulated by Alpaca (no fees, random partial fills). The Time Machine charges 30 bps on
   crypto and 10 bps on equities to stay conservative.
+- The desk is strict. The Technical Analyst only calls a symbol bullish when a backtest shows an edge, so most
+  reviews end in Hold, and by default a Hold vetoes the entry. `TRADER_DESK_HOLD=half` takes half size instead.
+- A desk review takes one to four minutes on free models and is capped at 6 per hour. The Time Machine and the
+  scenarios replay the rules only, never an AI, because a model may remember what happened next.
 - Free LLM tiers rate-limit; calls are capped per hour and any failure falls back to the rule brain, marked degraded.
 
 ## Layout
@@ -119,9 +142,9 @@ src/pages/AppPage.tsx             the terminal; Autopilot is the default tab
 src/components/autopilot/         the cockpit: control bar, journal, book, performance, Time Machine
 src/landing/                      landing page (hero uses the real backtest report)
 backend/axiom/trading/            risk kernel, brokers (sim, Alpaca paper), engine, tournament, contracts,
-                                  autonomy ladder, LLM brain, journal, Time Machine, report, API routes
+                                  autonomy ladder, LLM brain, trading desk, alerts, scenarios, journal, Time Machine, report, API routes
 backend/axiom/quant/              indicators, regime, sizing, backtest maths (shared with research)
-backend/axiom/agents/, mcp_server/  the research agents and their 11 MCP tools
+backend/axiom/agents/, mcp_server/  the research agents and the 16 MCP tools (11 research, 5 paper trading)
 backend/axiom/llm/                free LLM fallback chain with budgets and a scripted fake
 docs/                             architecture, backtest report, deployment, MCP clients, eval report
 ```
