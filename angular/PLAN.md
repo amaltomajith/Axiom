@@ -1,5 +1,7 @@
 # Axiom Watch: plan
 
+> **Historical.** The plan agreed before Axiom Watch was built. The code and [README](README.md) are the source of truth now. Kept for context; the current map is the [docs index](../docs/README.md).
+
 A second Axiom front end in Angular, RxJS and NgRx: a per-visitor watchlist, search-as-you-type for tickers, and a
 live monitor for research runs. It sits beside the React app and talks to the same FastAPI backend.
 

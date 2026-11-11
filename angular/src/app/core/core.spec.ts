@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { apiErrorMessage } from './api.service';
 import { backoffDelay } from './backoff';
-import { DEFAULT_API_BASE, loadApiBase } from './config';
+import { DEFAULT_API_BASE, DEFAULT_HUB_URL, loadConfig } from './config';
 import { formatPct, formatPrice, ratingLabel, ratingTone } from './format';
 import { visitorId } from './visitor';
 
@@ -51,17 +51,22 @@ describe('visitorId', () => {
   });
 });
 
-describe('loadApiBase', () => {
+describe('loadConfig', () => {
   const respond = (body: unknown, ok = true) => (() => Promise.resolve({ ok, json: () => Promise.resolve(body) })) as unknown as typeof fetch;
+  const defaults = { apiBase: DEFAULT_API_BASE, hubUrl: DEFAULT_HUB_URL };
 
-  it('reads apiBase from config.json and trims a trailing slash', async () => {
-    expect(await loadApiBase(respond({ apiBase: 'https://api.example/' }))).toBe('https://api.example');
+  it('reads apiBase and hubUrl from config.json and trims a trailing slash', async () => {
+    expect(await loadConfig(respond({ apiBase: 'https://api.example/', hubUrl: 'http://localhost:5173/hub/' }))).toEqual({
+      apiBase: 'https://api.example',
+      hubUrl: 'http://localhost:5173/hub',
+    });
+    expect((await loadConfig(respond({ apiBase: 'https://api.example' }))).hubUrl).toBe(DEFAULT_HUB_URL);
   });
 
-  it('falls back to the local API when the file is missing or wrong', async () => {
-    expect(await loadApiBase(respond({}, false))).toBe(DEFAULT_API_BASE);
-    expect(await loadApiBase(respond({ apiBase: 42 }))).toBe(DEFAULT_API_BASE);
-    expect(await loadApiBase((() => Promise.reject(new Error('offline'))) as unknown as typeof fetch)).toBe(DEFAULT_API_BASE);
+  it('falls back to the defaults when the file is missing or wrong', async () => {
+    expect(await loadConfig(respond({}, false))).toEqual(defaults);
+    expect(await loadConfig(respond({ apiBase: 42, hubUrl: 'javascript:alert(1)' }))).toEqual(defaults);
+    expect(await loadConfig((() => Promise.reject(new Error('offline'))) as unknown as typeof fetch)).toEqual(defaults);
   });
 });
 

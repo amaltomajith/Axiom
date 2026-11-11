@@ -135,6 +135,21 @@ export interface Health {
   actions_executor: 'dry_run' | 'composio';
   auth_required: boolean;
   scheduler: boolean;
+  storage?: 'postgres' | 'sqlite';
+  daily_cap?: number | null;
+}
+
+/** GET /api/status: the health snapshot plus aggregate counts, for the hub page. */
+export interface ApiStatus extends Health {
+  counts: {
+    runs: number;
+    last_run_at: number | null;
+    theses: Record<string, number>;
+    actions: Record<string, number>;
+    watchlist: number;
+    trades: number;
+  };
+  analyses_today: { used: number | null; cap: number | null };
 }
 
 // ----------------------------------------------------------------------- agents

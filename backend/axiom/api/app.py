@@ -154,14 +154,13 @@ def create_app() -> FastAPI:
         return JSONResponse({"error": str(e)}, status_code=409)
 
     # ------------------------------------------------------------------ meta
-    @app.get("/api/health")
-    async def health():
+    def config_snapshot() -> dict:
         s = get_settings()
-        chain = [p.name for p in build_chain(s)]
+        chain = build_chain(s)
         return {
             "ok": True,
-            "llm_chain": chain,
-            "llm_models": {p.name: p.model for p in build_chain(s)},
+            "llm_chain": [p.name for p in chain],
+            "llm_models": {p.name: p.model for p in chain},
             "market_data": "twelvedata" if s.twelvedata_api_key else "yfinance",
             "news": "finnhub" if s.finnhub_api_key else "google_news_rss",
             "actions_executor": build_executor(s).name,
@@ -170,6 +169,23 @@ def create_app() -> FastAPI:
             "storage": "postgres" if s.database_url else "sqlite",
             "daily_cap": s.analyze_per_day or None,
         }
+
+    @app.get("/api/health")
+    async def health():
+        return config_snapshot()
+
+    @app.get("/api/status")
+    async def status():
+        """Everything the hub page shows about the API in one public call: the config snapshot from
+        /api/health plus aggregate counts from the store. Counts only, never secrets or visitor ids.
+        Kept separate from /api/health because both front ends poll health to wake the function."""
+        body = config_snapshot()
+        st = store()
+        counts = await asyncio.to_thread(st.counts)
+        cap = get_settings().analyze_per_day
+        today = datetime.now(UTC).strftime("%Y%m%d")
+        used = await asyncio.to_thread(st.usage, "global", today) if cap else None
+        return {**body, "counts": counts, "analyses_today": {"used": used, "cap": cap or None}}
 
     # ------------------------------------------------------------ market data
     @app.get("/api/market/{ticker}/ohlcv")

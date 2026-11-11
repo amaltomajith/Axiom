@@ -34,7 +34,7 @@ Failure is graceful: a failed analyst becomes `insufficient_data` and caps convi
 - **Custom orchestration, no LangChain**: explicit control over tokens and a trace that mirrors the code; easy to read.
 - **MCP as the only data path**: the agent code is identical in-process, over stdio, or over HTTP, and the same tools are
   reusable from Claude Desktop/Code.
-- **OpenAI-compatible provider chain**: one client for Groq, Gemini, OpenRouter and Ollama.
+- **OpenAI-compatible provider chain**: one client for Groq, Cerebras, Gemini, OpenRouter and Ollama, tried in the order `LLM_CHAIN` gives.
 - **SQLite locally, Postgres when deployed**, behind one `Store` (portable SQL in `axiom/db.py`). The response cache and the per-client and daily usage caps live in the same database, so serverless instances share them.
 - **Request-keyed LLM cache and recordings**: replay evals and CI at zero cost.
 

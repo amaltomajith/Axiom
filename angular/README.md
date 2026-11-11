@@ -27,8 +27,10 @@ npm ci
 npm start            # http://localhost:4200
 ```
 
-The API URL comes from `public/config.json` at runtime, so one build can point at any API. The API must list the
-app's origin in `CORS_ORIGINS` (`http://localhost:4200` is in the backend's default list).
+The API URL (`apiBase`) and the "All of Axiom" hub link (`hubUrl`) come from `public/config.json` at runtime, so one
+build can point at any API. `ng serve` uses `config/dev/config.json` instead (local API, local hub). The API must list
+the app's origin in `CORS_ORIGINS` (`http://localhost:4200` is in the backend's default list). To run it together with
+the API and the React app, use `npm run dev:all` from the repo root.
 
 ## Test
 
@@ -59,8 +61,8 @@ docker run --rm -p 8080:80 axiom-watch                       # http://localhost:
 docker run --rm -p 8080:80 -e AXIOM_API_BASE=http://localhost:8000 axiom-watch
 ```
 
-`AXIOM_API_BASE` is written into `config.json` when the container starts. Without it, the image uses the deployed
-API. Any free host port works: on a machine where 8080 is taken, use `-p 8081:80`.
+`AXIOM_API_BASE` (and optionally `AXIOM_HUB_URL`) are written into `config.json` when the container starts. Without
+them, the image uses the deployed API and hub. Any free host port works: on a machine where 8080 is taken, use `-p 8081:80`.
 
 Checked locally on 2026-11-10: the image is 93.5 MB (`docker images`). With `-p 8081:80` and
 `AXIOM_API_BASE=http://localhost:8000/`, `/`, `/run/AAPL` and an unknown deep path all returned `index.html`,

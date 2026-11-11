@@ -1,5 +1,7 @@
 # Axiom: Agentic Refactor Blueprint
 
+> **Historical.** This is the design written before the October 2026 rebuild. Supabase and the mock models it mentions are gone, and the build deviated from it in places listed in the README. Kept for context; the current map is the [docs index](../docs/README.md).
+
 ## 🎯 Project Objective
 Transform "Axiom", currently a frontend-heavy stock dashboard with mocked machine learning models, into an **Autonomous Market Intelligence & Portfolio Analyst Terminal**. 
 

@@ -35,6 +35,28 @@
   background: hsl(var(--primary));
 }
 
+.end {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.hub {
+  color: hsl(var(--primary));
+  text-decoration: none;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}
+
+/* On phones the footer link is enough; the bar keeps the brand and the API status on one line. */
+@media (max-width: 480px) {
+  .hub {
+    display: none;
+  }
+}
+
 .api {
   display: inline-flex;
   align-items: center;
@@ -87,4 +109,9 @@ main {
   padding: 1rem;
   text-align: center;
   border-top: 1px solid hsl(var(--border));
+
+  a {
+    color: inherit;
+    text-underline-offset: 2px;
+  }
 }

@@ -48,13 +48,13 @@ Environment variables (Project Settings, Environment Variables):
 | Name | Value | Why |
 |---|---|---|
 | `DATABASE_URL` | Neon pooled string | Persistent runs, theses, shared cache |
-| `LLM_CHAIN` | `cerebras,groq,openrouter` | No `gemini` unless you read the note below. Ollama is skipped automatically on serverless |
+| `LLM_CHAIN` | `cerebras,groq,openrouter` | Recommended for a public deploy (the code default is `groq,gemini,openrouter,ollama`; the live demo runs `openrouter,groq`). No `gemini` unless you read the note below. Ollama is skipped automatically on serverless |
 | `CEREBRAS_API_KEY`, `GROQ_API_KEY`, `OPENROUTER_API_KEY` | your free keys | Set at least one |
 | `GROQ_MODEL`, `CEREBRAS_MODEL`, `OPENROUTER_MODEL` | check each provider's current model list | Free model ids change often. Defaults may be stale |
 | `AXIOM_API_TOKEN` | a long random string | Without it, anyone can edit the watchlist and paper trades |
-| `CORS_ORIGINS` | your frontend URL, no trailing slash | Browser calls are blocked otherwise |
+| `CORS_ORIGINS` | every frontend URL, comma-separated, no trailing slash | Browser calls are blocked otherwise. The live API lists the terminal and Axiom Watch |
 | `ANALYZE_PER_DAY` | `40` | Global cap. About what the free LLM quotas sustain |
-| `ANALYZE_PER_HOUR` | `6` | Per visitor |
+| `ANALYZE_PER_HOUR` | `6` | Per visitor (the code default is 12; lower is kinder to free quotas) |
 | `RUN_DEADLINE_SECONDS` | `270` | Ends a run cleanly before the 300 s function limit |
 | `CRON_SECRET` | a long random string | Enables `/api/cron/daily`; Vercel Cron sends it automatically |
 | `SEC_USER_AGENT` | `Axiom Research you@yourdomain.com` | SEC requires a real contact |
@@ -71,9 +71,9 @@ A second Vercel project from the same repository, **Root Directory** the repo ro
 
 | Name | Value |
 |---|---|
-| `VITE_API_BASE_URL` | the backend URL, for example `https://axiom-api.vercel.app` |
+| `VITE_API_BASE_URL` | the backend URL, for example `https://axiom-api-three.vercel.app` (the live one) |
 
-Then go back to the backend project, set `CORS_ORIGINS` to the frontend's URL and redeploy it. Open the site, then the key icon in the app header and paste `AXIOM_API_TOKEN` to unlock watchlist, paper trades and approvals.
+Then go back to the backend project, add the frontend's URL to `CORS_ORIGINS` and redeploy it. Axiom Watch is a third Vercel project from `angular/`; its API URL comes from `angular/public/config.json` (see [angular/README.md](../angular/README.md)) and its origin must be in `CORS_ORIGINS` too. Open the site, then the key icon in the app header and paste `AXIOM_API_TOKEN` to unlock watchlist, paper trades and approvals.
 
 Cloudflare Pages works the same way (build `npm run build`, output `dist`, same variable, SPA fallback is automatic).
 

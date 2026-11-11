@@ -1,5 +1,6 @@
 import type {
   ActionPlan,
+  ApiStatus,
   BacktestResponse,
   ForecastResponse,
   Health,
@@ -93,6 +94,7 @@ const enc = encodeURIComponent;
 
 export const api = {
   health: () => request<Health>('/api/health'),
+  status: () => request<ApiStatus>('/api/status'),
   ohlcv: (t: string, bars = 90) => cachedGet<OhlcvResponse>(`/api/market/${enc(t)}/ohlcv?bars=${bars}`),
   indicators: (t: string) => cachedGet<IndicatorsResponse>(`/api/quant/${enc(t)}/indicators`),
   regime: (t: string) => cachedGet<RegimeResponse>(`/api/quant/${enc(t)}/regime`),

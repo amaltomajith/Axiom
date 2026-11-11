@@ -3,15 +3,18 @@
     <span class="mark" aria-hidden="true"></span>
     <span>Axiom <span class="muted">Watch</span></span>
   </a>
-  <p class="api small" role="status" [attr.data-status]="apiStatus()">
-    <span class="dot" aria-hidden="true"></span>
-    @switch (apiStatus()) {
-      @case ('checking') { Connecting to the API }
-      @case ('waking') { Waking up the API }
-      @case ('ready') { API ready }
-      @case ('unreachable') { API unreachable }
-    }
-  </p>
+  <div class="end">
+    <a class="hub small" [href]="hubUrl" title="The hub lists every part of Axiom: the terminal, this app, the API, MCP and the data platform">All of Axiom</a>
+    <p class="api small" role="status" [attr.data-status]="apiStatus()">
+      <span class="dot" aria-hidden="true"></span>
+      @switch (apiStatus()) {
+        @case ('checking') { Connecting to the API }
+        @case ('waking') { Waking up the API }
+        @case ('ready') { API ready }
+        @case ('unreachable') { API unreachable }
+      }
+    </p>
+  </div>
 </header>
 
 @if (apiStatus() === 'waking') {
@@ -31,4 +34,5 @@
 
 <footer class="foot caption muted">
   Research only, not financial advice. Prices are daily bars from free market data.
+  <a [href]="hubUrl">See every part of Axiom</a>.
 </footer>

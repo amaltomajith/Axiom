@@ -3,10 +3,11 @@ import { Logo } from '@/components/Logo';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { Button } from '@/components/ui/button';
 
+// Anchors are absolute ("/#how") so they also work from /hub, which shares this nav.
 const LINKS = [
-  { href: '#how', label: 'How it works' },
-  { href: '#evidence', label: 'Evidence' },
-  { href: '#mcp', label: 'MCP' },
+  { href: '/#how', label: 'How it works' },
+  { href: '/#evidence', label: 'Evidence' },
+  { href: '/#mcp', label: 'MCP' },
 ];
 
 /** One line at every width, 64px. The anchors collapse away on phones; the call to action never does. */
@@ -23,6 +24,9 @@ export function Nav() {
               {l.label}
             </a>
           ))}
+          <Link to="/hub" className="rounded-md px-3 py-2 text-small text-muted-foreground transition-colors hover:text-foreground">
+            Hub
+          </Link>
         </nav>
         <div className="flex items-center gap-1.5">
           <ThemeToggle />

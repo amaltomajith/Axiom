@@ -1,8 +1,9 @@
 # Axiom: an agentic market-intelligence terminal
 
-**Live demo:** https://axiom-ten-henna.vercel.app (landing at `/`, terminal at `/app`)
+**Live demo:** https://axiom-ten-henna.vercel.app (landing at `/`, terminal at `/app`, every part at `/hub`)
+**Second front end:** https://axiom-watch.vercel.app (Angular, RxJS, NgRx)
 **API:** https://axiom-api-three.vercel.app
-**Stack:** Python (FastAPI, FastMCP), Postgres (Neon) / SQLite, React + TypeScript + Vite + Tailwind, Vercel.
+**Stack:** Python (FastAPI, FastMCP), Postgres (Neon) / SQLite, React + TypeScript + Vite + Tailwind, Angular + NgRx, BigQuery, Vercel.
 **Cost to run:** $0. Free LLM tiers, free Postgres, free hosting, free data sources.
 
 ## What it is
@@ -83,7 +84,9 @@ Latest report (`docs/eval-report.md`, model `qwen3:8b` recorded locally):
 - **Frontend:** React, TypeScript, Vite, Tailwind, shadcn primitives, Motion, Recharts. Token-based design system with light and dark themes that follow the system, a command palette, a pipeline stepper driven by trace events, a cited memo with evidence popovers, a trace drawer, a forecast-cone chart, and Backtest, Watchlist, Paper trading, Scorecard and Actions tabs.
 - **Landing page:** built on a recorded real run (`snapshot.json`), not mock screenshots. It has a scroll-pinned walkthrough, a bento of real results and the real eval numbers.
 - **Design guardrails as tests:** WCAG AA contrast on every token pair in both themes, a ban on em/en dashes in copy, and a minimum text size.
-- **Tests:** about 159 backend tests (Python 3.12, including a real Postgres 16 in CI) and 88 frontend tests.
+- **Tests:** 206 backend tests (Python 3.12, including a real Postgres 16 in CI; the Postgres and real-BigQuery ones skip locally without credentials), 97 React tests and 116 Angular tests.
+- **Axiom Watch:** a second front end in Angular 22, RxJS and NgRx (per-visitor watchlist, debounced ticker search, a live run monitor over `EventSource` with backoff), with its own Docker image and Vercel project.
+- **Hub and launcher:** `/hub` maps every part with live status (API counts from `/api/status`, the latest CI and data-platform runs from the GitHub API), and `npm run dev:all` starts the API and both front ends with one command, refusing to point local runs at the production database.
 
 ### 9. Deployment and production engineering
 
@@ -91,7 +94,8 @@ Latest report (`docs/eval-report.md`, model `qwen3:8b` recorded locally):
 - **One SQL seam for SQLite and Postgres:** placeholder translation, portable upserts, an advisory lock for schema creation, and tests parametrised across both engines. This caught a real bug: `window` is a reserved word in Postgres.
 - **Free-quota protection:** per-visitor hourly and global daily caps stored in the database, so they hold across serverless instances. A shared response cache lives in Postgres. One 1500-bar price fetch is sliced per caller instead of about eight separate fetches.
 - **Resilience:** an LLM fallback chain (OpenRouter, Groq, with Cerebras, Gemini and Ollama supported), SSE keepalive pings, a run deadline, and cron auth with a bearer secret and constant-time comparison.
-- **CI:** lint, format, type and test jobs, a Postgres service, and a check that `requirements.txt` matches `uv.lock`.
+- **CI:** lint, format, type and test jobs for the backend and both front ends, a Postgres service, a check that `requirements.txt` matches `uv.lock`, and a Docker smoke test of Axiom Watch.
+- **Data platform:** a weekday BigQuery ELT from production through a read-only role, with SQL data-quality checks that gate the marts, least-privilege service accounts and Workload Identity Federation (no stored key). Details in [gcp-architecture.md](gcp-architecture.md) and [RESULTS.md](../RESULTS.md).
 
 ## What I learned and what went wrong
 
@@ -114,10 +118,10 @@ Latest report (`docs/eval-report.md`, model `qwen3:8b` recorded locally):
 - Built a multi-agent research system, with parallel technical and fundamental analysts, a synthesizer, a risk critic and a deterministic policy layer, that produces cited investment memos. All tool access goes through an 11-tool MCP server that also works from Claude Desktop and Claude Code.
 - Designed guardrails that check every number in a memo against the evidence it cites, cap ratings deterministically, and degrade to NO_CALL on thin data. This included a prompt-injection defence and approval-gated actions through Composio.
 - Wrote a record/replay eval harness. All 16 cases pass, including 10 injection cases. A no-defence control obeyed the injection in 4 of 5 cases, so the results can fail and mean something.
-- Deployed free end to end on Vercel and Neon. A single SQL layer runs on SQLite and Postgres, with database-backed rate limits and cache, a run deadline and cron scoring. I tested it against real Postgres in CI, and about 159 backend and 88 frontend tests pass.
+- Deployed free end to end on Vercel and Neon. A single SQL layer runs on SQLite and Postgres, with database-backed rate limits and cache, a run deadline and cron scoring. I tested it against real Postgres in CI, and 206 backend, 97 React and 116 Angular tests pass.
 - Redesigned the UI as a light and dark product with a landing page built from a real recorded run. Design rules such as WCAG AA contrast are enforced by tests.
 
 **Shorter version (3 bullets):**
 - Built and deployed a free-tier agentic stock-research terminal: an MCP server with 11 tools, a multi-agent pipeline, and a Python FastAPI backend with Postgres on Vercel.
-- Engineered guardrails and evals: a number-to-evidence faithfulness check, deterministic policy caps, injection tests with a no-defence control, and about 159 backend and 88 frontend tests.
+- Engineered guardrails and evals: a number-to-evidence faithfulness check, deterministic policy caps, injection tests with a no-defence control, and 206 backend, 97 React and 116 Angular tests.
 - Shipped a React and TypeScript UI with light and dark themes and a landing page built from a real run, plus database-backed quotas and cron scoring to stay inside free limits.

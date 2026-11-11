@@ -94,6 +94,32 @@ class Store:
             row = c.execute("SELECT n FROM usage WHERE key=? AND bucket=?", (key, window)).fetchone()
         return int(row["n"]) if row else 0
 
+    # ---------------------------------------------------------------- status
+    def counts(self) -> dict[str, Any]:
+        """Aggregate counts for the public status page. Numbers only: no tickers per visitor, no ids."""
+        with self._conn() as c:
+
+            def one(sql: str) -> Any:
+                row = c.execute(sql).fetchone()
+                return row["v"] if row else None
+
+            theses = {
+                r["status"]: int(r["n"])
+                for r in c.execute("SELECT status, COUNT(*) AS n FROM theses GROUP BY status").fetchall()
+            }
+            actions = {
+                r["status"]: int(r["n"])
+                for r in c.execute("SELECT status, COUNT(*) AS n FROM actions GROUP BY status").fetchall()
+            }
+            return {
+                "runs": int(one("SELECT COUNT(*) AS v FROM runs") or 0),
+                "last_run_at": one("SELECT MAX(created_at) AS v FROM runs"),
+                "theses": theses,
+                "actions": actions,
+                "watchlist": int(one("SELECT COUNT(*) AS v FROM watchlist") or 0),
+                "trades": int(one("SELECT COUNT(*) AS v FROM paper_trades") or 0),
+            }
+
     # ------------------------------------------------------------------ runs
     def save_run(self, run_id: str, ticker: str, result: dict, events: list[dict]) -> None:
         with self._conn() as c:

@@ -1,1 +1,1 @@
-{ "apiBase": "https://axiom-api-three.vercel.app" }
+{ "apiBase": "https://axiom-api-three.vercel.app", "hubUrl": "https://axiom-ten-henna.vercel.app/hub" }

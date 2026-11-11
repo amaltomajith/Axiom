@@ -7,12 +7,27 @@ write a memo in which *every number links to the tool call that produced it*. Th
 backtests, risk, sizing) is plain tested code, the LLMs only reason and explain, a deterministic policy layer caps
 what they may conclude, and every call is later **scored against what the price actually did**.
 
-It runs on a **free stack**: Groq / Gemini / OpenRouter free tiers with an automatic fallback chain, or fully offline on
-a local Ollama model. No paid API key is required.
+It runs on a **free stack**: free LLM tiers (Groq, Gemini, OpenRouter, Cerebras) with an automatic fallback chain, or
+fully offline on a local Ollama model. No paid API key is required.
 
 > Research tooling, not financial advice. Axiom is paper-trading only: there is no brokerage connection.
 
-Deep dive: [docs/architecture.md](docs/architecture.md) · Eval results: [docs/eval-report.md](docs/eval-report.md)
+**Everything in one place: the [hub](https://axiom-ten-henna.vercel.app/hub)** shows each part below with live status,
+how to run it and its docs. Locally it is at http://localhost:5173/hub.
+
+## The parts
+
+| Part | What you get | Live | Code | Run just this part |
+|---|---|---|---|---|
+| **Axiom terminal** (React) | The main app: run the agents on a ticker, read the cited memo, backtests, paper trades, scorecard, approvals | https://axiom-ten-henna.vercel.app | [`src/`](src/) | `npm run dev` |
+| **Axiom Watch** (Angular) | A lighter app: ticker search, a personal watchlist with no sign-in, a live step-by-step run monitor | https://axiom-watch.vercel.app | [`angular/`](angular/) | `cd angular && npm start` |
+| **Axiom API** (FastAPI) | The backend both apps call: agents, guardrails, memory, approvals, weekday cron | https://axiom-api-three.vercel.app (try `/api/status`) | [`backend/axiom/`](backend/axiom/) | `cd backend && uv run python -m axiom.api` |
+| **MCP server** | The same 11 research tools, for Claude Desktop or Claude Code | runs on your machine | [`backend/axiom/mcp_server/`](backend/axiom/mcp_server/) | `cd backend && uv run python -m axiom.mcp_server` |
+| **Data platform** | Weekday BigQuery ELT of the app's runs, with data-quality checks and marts | [GitHub Actions](https://github.com/amaltomajith/Axiom/actions/workflows/data-platform.yml) | [`backend/data_platform/`](backend/data_platform/) | `cd backend && uv run python -m data_platform run --env dev` |
+
+Every doc, and whether it is still current: [docs/README.md](docs/README.md). The Python side in detail:
+[backend/README.md](backend/README.md). Design deep dive: [docs/architecture.md](docs/architecture.md). Eval results:
+[docs/eval-report.md](docs/eval-report.md).
 
 ## What makes it different
 
@@ -28,10 +43,10 @@ Deep dive: [docs/architecture.md](docs/architecture.md) · Eval results: [docs/e
 ## Architecture
 
 ```
-React UI (Vite, Tailwind, shadcn)  ──SSE──►  FastAPI  ──►  Orchestrator
- live Agent Trace · cited memo                              ├─ Technical Analyst ┐  (tool allowlists, evidence ids)
- cone chart · backtest verdicts                             ├─ Fundamental Auditor ┤
- approval queue · scorecard                                 ├─ Risk Guard (tools + code)
+React terminal (Vite, Tailwind)    ──SSE──►  FastAPI  ──►  Orchestrator
+Axiom Watch (Angular, NgRx)  ──EventSource──►               ├─ Technical Analyst ┐  (tool allowlists, evidence ids)
+                                                            ├─ Fundamental Auditor ┤
+                                                            ├─ Risk Guard (tools + code)
                                                             ├─ Lead Synthesizer ─► Critic ─► Policy guard
                                                             └─ Faithfulness gate · token budget
                                                                      │ MCP (in-process / stdio / HTTP)
@@ -41,6 +56,8 @@ React UI (Vite, Tailwind, shadcn)  ──SSE──►  FastAPI  ──►  Orche
                                                             ├─ news (+ injection redaction) · SEC EDGAR filings
                                                             └─ position sizing · peers
                                   Actions (Composio) ◄── approval gate ── Memory (SQLite/Postgres): runs · theses · outcomes
+                                                                     │ weekday ELT through a read-only role
+                                                            BigQuery: raw → staging → data-quality gate → marts
 ```
 
 The **same MCP server** powers the web app *and* can be added to Claude Desktop / Claude Code: see
@@ -48,28 +65,39 @@ The **same MCP server** powers the web app *and* can be added to Claude Desktop 
 
 ## Quick start
 
-Requirements: Node 18+, Python 3.11+ with [uv](https://docs.astral.sh/uv/), and optionally [Ollama](https://ollama.com) (`ollama pull qwen3:8b`).
+Requirements: Node 20+ (Axiom Watch needs Node 24, or 22.22.3+), Python 3.12 with [uv](https://docs.astral.sh/uv/), and
+optionally [Ollama](https://ollama.com) (`ollama pull qwen3:8b`).
 
 ```bash
-# 1. backend
-cd backend
-cp .env.example .env            # all optional; add a free Groq/Gemini key for speed
-uv sync
-uv run python -m axiom.api      # http://localhost:8000
+npm install && (cd angular && npm install) && (cd backend && uv sync)   # once
+cp backend/.env.example backend/.env    # optional: add a free Groq or Gemini key for speed
 
-# 2. frontend (new terminal)
-npm install
-npm run dev                     # landing page: http://localhost:5173  terminal: http://localhost:5173/app
+npm run dev:all                         # API, terminal and Axiom Watch together; Ctrl+C stops all three
 ```
+
+| Open | For |
+|---|---|
+| http://localhost:5173/hub | The hub: every part, with status |
+| http://localhost:5173 and `/app` | Landing page and the terminal |
+| http://localhost:4200 | Axiom Watch |
+| http://localhost:8000/api/status | The API |
+
+The launcher ([`scripts/dev.mjs`](scripts/dev.mjs), `npm run dev:all -- --help`) prefixes each log line with its part,
+skips a part whose port is busy, borrows a newer Node from nvm for Angular if yours is too old, and **keeps the local
+API on SQLite even when `backend/.env` holds the production `DATABASE_URL`** (`--prod-db` overrides that).
+`--only api,terminal` starts a subset.
 
 With no keys at all it uses yfinance + Google News RSS + SEC EDGAR + local Ollama. A full agent run takes
 about 20 to 60 seconds on a small local model and 5 to 15 seconds on Groq.
 
 ### Useful commands
 
+Python commands run inside `backend/`; the full list is in [backend/README.md](backend/README.md).
+
 ```bash
-uv run pytest                                   # 142 backend tests (quant, MCP, agents, API, actions, memory)
-npm test && npm run lint && npm run build       # frontend
+uv run pytest                                   # 206 backend tests (Postgres and real-BigQuery ones skip without their env vars)
+npm test && npm run lint && npm run build       # React: 97 tests, including copy, contrast and hub-manifest guardrails
+(cd angular && npx ng test --watch=false)       # Axiom Watch: 116 tests
 uv run python -m axiom.mcp_server               # the MCP server over stdio
 npx @modelcontextprotocol/inspector uv run python -m axiom.mcp_server   # poke the tools by hand
 uv run python -m evals.run --mode replay --recording evals/recordings/qwen3-8b.jsonl   # evals at $0
@@ -79,7 +107,8 @@ uv run python -m axiom.actions.composio_check   # verify Composio tool slugs
 
 ## Design
 
-Two routes: `/` is a landing page that explains the system using a recorded real run (no mock numbers), and `/app` is the terminal.
+Three routes: `/` is a landing page that explains the system using a recorded real run (no mock numbers), `/app` is the
+terminal, and `/hub` maps every part of the project with live status.
 The design follows Apple's fluid-interface principles (instant response, critically damped springs, interruptible motion,
 translucent materials only on chrome, optical type) with a strict token system in `src/index.css`:
 
@@ -96,12 +125,12 @@ Free tiers, no card: Vercel (static frontend + Python function), Neon Postgres, 
 the daily briefing. A Dockerfile covers Cloud Run if Vercel's limits get in the way. Full steps, the env table and a
 ten-minute verification checklist are in [`docs/deployment.md`](docs/deployment.md).
 
-## Angular front end
+## Axiom Watch (Angular)
 
 [`angular/`](angular/) holds **Axiom Watch**, a second front end written in Angular, RxJS and NgRx: a per-visitor
 watchlist with prices and the last rating, search-as-you-type for tickers, and a live monitor for a research run's
-pipeline, streamed over `EventSource`. It is deployed as its own Vercel project (https://axiom-watch.vercel.app) and ships
-a multi-stage Docker image (Node build, nginx serve). How it works and why each RxJS operator was chosen:
+pipeline, streamed over `EventSource`. It is deployed as its own Vercel project (https://axiom-watch.vercel.app), ships
+a multi-stage Docker image (Node build, nginx serve), and links back to the hub. How it works and why each RxJS operator was chosen:
 [`angular/LEARNING.md`](angular/LEARNING.md). Run, test and deploy steps: [`angular/README.md`](angular/README.md).
 
 ## Data platform
@@ -147,7 +176,8 @@ uv run python -m data_platform dryrun --env prod --project <gcp-project>  # byte
 
 Free tiers fail with `429`s rather than bills, and the real limit is usually tokens per minute. So:
 
-- one OpenAI-compatible client over **Cerebras / Groq → Gemini → OpenRouter free → Ollama**, with `Retry-After`-aware
+- one OpenAI-compatible client over **Groq → Gemini → OpenRouter free → Ollama** by default (set by `LLM_CHAIN`;
+  Cerebras is available too, and the live demo runs OpenRouter then Groq), with `Retry-After`-aware
   backoff, a process-wide cooldown for rate-limited providers, and per-run token and call budgets;
 - MCP tools return *computed summaries*, never raw price arrays, and all arithmetic happens in code;
 - identical requests are cached, and evals record once then replay deterministically at zero cost;
@@ -168,8 +198,10 @@ Free tiers fail with `429`s rather than bills, and the real limit is usually tok
 ## Layout
 
 ```
-src/                 React app (tabs: Analyze, Backtest, Watchlist, Paper trade, Scorecard, Actions)
+src/                 React app: landing, terminal (Analyze, Backtest, Watchlist, Paper trade, Scorecard, Actions), hub
+src/hub/parts.ts     the list of parts and docs behind the hub page (tests keep it in step with the repo)
 angular/             Axiom Watch: Angular + RxJS + NgRx watchlist and live run monitor
+scripts/dev.mjs      npm run dev:all, the one-command local launcher
 backend/axiom/
   quant/             indicators, regime, walk-forward backtester, forecast cone, risk (pure, tested)
   data/              market (Twelve Data/yfinance), news, SEC EDGAR, cache, rate limits
@@ -180,8 +212,9 @@ backend/axiom/
   memory/            store (SQLite or Postgres), outcome scorer, scorecard
   api/               FastAPI app (SSE analysis stream, memory, approvals)
 backend/evals/       honesty scenarios, injection attacks + undefended control, judge, record/replay
-backend/data_platform/  BigQuery ELT: tables.yaml, extract/load, staging + mart SQL, synthetic seed
-refs/                the original design blueprint
+backend/data_platform/  BigQuery ELT: tables.yaml, extract/load, staging + mart SQL, synthetic seed, Spark, research
+docs/                architecture, deployment, MCP, data platform, eval report (index: docs/README.md)
+refs/, reports/      the original blueprint and the hosting research (historical)
 ```
 
 ## License
