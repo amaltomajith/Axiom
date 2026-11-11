@@ -9,12 +9,15 @@ orders), equities a GTC stop. Order ids are our deterministic client ids, so a r
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import Any
 
 from ..models import AccountState, Order, OrderRequest, Position
 from ..symbols import parse
 from .base import BrokerError
+
+log = logging.getLogger(__name__)
 
 STOP_LIMIT_BUFFER = 0.005  # crypto stop-limit: limit 0.5% under the stop, so a fast fall still fills
 _STATUS = {
@@ -57,6 +60,9 @@ class AlpacaPaperBroker:
         self._pending_stop: dict[str, float] = {}  # entry client id -> stop price to place after the fill
         self._avg_entry: dict[str, float] = {}
         self._clock: tuple[float, bool] | None = None
+        self.stop_error: str | None = (
+            None  # last failure to place a broker stop (the engine still checks stops)
+        )
 
     async def _call(self, fn, *a, **kw):
         try:
@@ -165,7 +171,27 @@ class AlpacaPaperBroker:
 
     async def _ensure_stop(self, o: Order) -> None:
         if o.side == "buy" and o.status == "filled" and o.id in self._pending_stop:
-            await self._place_stop(o.symbol, o.filled_qty, self._pending_stop.pop(o.id))
+            stop = self._pending_stop.pop(o.id)
+            try:
+                await self._place_stop(o.symbol, await self._held(o.symbol, o.filled_qty), stop)
+                self.stop_error = None
+            except (
+                BrokerError
+            ) as e:  # never let a stop failure break polling: the engine checks stops each tick
+                self.stop_error = f"{o.symbol}: the broker stop at {stop:g} was not placed ({e})"[:300]
+                log.warning(self.stop_error)
+
+    async def _held(self, symbol: str, filled: float) -> float:
+        """What the account can actually sell. Alpaca takes the crypto fee out of the coins received, so a
+        0.000136 BTC buy leaves 0.00013566: a stop for the filled quantity would be rejected."""
+        if not parse(symbol).is_crypto:
+            return filled
+        key = symbol.replace("/", "")
+        for p in await self._call(self.client.get_all_positions):
+            if str(p.symbol).replace("/", "") == key:
+                held = _f(getattr(p, "qty_available", None), _f(p.qty))
+                return min(filled, held) if held > 0 else filled
+        return filled
 
     def _track(self, o: Order) -> Order:
         self._open[o.id] = o

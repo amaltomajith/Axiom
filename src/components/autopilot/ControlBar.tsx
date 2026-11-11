@@ -178,6 +178,11 @@ export function ControlBar({ status, onRedteam }: { status: TraderStatus; onRedt
           {status.halted ? `Halted: ${status.halted}.` : `Last tick failed: ${status.last_error}`}
         </p>
       )}
+      {status.broker_warning && (
+        <p role="status" className="border-t border-border bg-warning/10 px-5 py-2.5 text-small text-warning sm:px-6">
+          Broker stop missing, the Autopilot still checks the stop every tick. {status.broker_warning}
+        </p>
+      )}
       <div className="grid gap-6 border-t border-border px-5 py-4 sm:px-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <div className="grid grid-cols-2 gap-4">
           <div>

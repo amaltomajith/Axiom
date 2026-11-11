@@ -34,8 +34,8 @@ Before the demo:
 1. Put Alpaca **paper** keys in `backend/.env` (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`) and run
    `uv run python scripts/alpaca_smoke.py --trade` once: it checks the account is paper, crypto is active, and does a
    ~$10 BTC/USD round trip with a stop.
-2. Set `TRADER_BROKER=alpaca`, `TRADER_SYMBOLS=BTC/USD,ETH/USD` (crypto trades 24/7), `TRADER_BRAIN=llm` if a free
-   LLM key is set, and start the loop **several days early** so the journal, contracts and autonomy ladder show a
+2. Set `TRADER_BROKER=alpaca`, `TRADER_SYMBOLS=BTC/USD,ETH/USD` (crypto trades 24/7), `TRADER_BRAIN=llm` with an LLM
+   key set (for example `NEBIUS_API_KEY` and `LLM_CHAIN=nebius,groq,openrouter,ollama`), and start the loop **several days early** so the journal, contracts and autonomy ladder show a
    real track record.
 3. Regenerate the report: `uv run python -m axiom.trading backtest`, then `npm run build:selfhost` so the landing
    page shows the new numbers.

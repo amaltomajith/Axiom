@@ -2,7 +2,7 @@
 
 Only `base_url`, key and model differ, so swapping or adding a provider is one entry here. A provider
 without credentials is skipped, which lets the same code run on Groq, Gemini, OpenRouter free models,
-or fully offline on Ollama.
+Nebius credits, or fully offline on Ollama.
 """
 
 from __future__ import annotations
@@ -31,6 +31,11 @@ def _catalog(s: Settings) -> dict[str, ProviderSpec | None]:
             "cerebras", "https://api.cerebras.ai/v1", s.cerebras_api_key, s.cerebras_model
         )
         if s.cerebras_api_key
+        else None,
+        "nebius": ProviderSpec(
+            "nebius", "https://api.tokenfactory.nebius.com/v1", s.nebius_api_key, s.nebius_model
+        )
+        if s.nebius_api_key
         else None,
         "gemini": ProviderSpec(
             "gemini",

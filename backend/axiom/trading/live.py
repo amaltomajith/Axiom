@@ -269,6 +269,7 @@ class Trader:
             "heartbeat_age_seconds": None if hb is None else round(time.time() - hb, 1),
             "failures": self.failures,
             "last_error": self.last_error,
+            "broker_warning": getattr(self.broker, "stop_error", None),
             "symbol_errors": self.symbol_errors,
             "benchmark_value": self.engine.benchmark_value,
         }

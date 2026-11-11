@@ -292,3 +292,48 @@ def test_periods_per_year():
     assert periods_per_year([parse("BTC/USD")], 3600) == 8760
     assert periods_per_year([parse("SPY")], 86_400) == 252
     assert time.time() > 0
+
+
+async def test_crypto_stop_is_sized_from_the_coins_held_after_the_fee():
+    """Alpaca paper takes the crypto fee out of the coins: 0.000136 BTC bought leaves 0.00013566 to sell."""
+    b, fake = broker(73_700.0)
+    fill = fake._fill
+
+    def fill_with_fee(o):
+        fill(o)
+        key = o.symbol.replace("/", "")
+        if o.side == "buy" and key in fake.positions:
+            fake.positions[key].qty = fake.positions[key].qty_available = "0.00013566"
+
+    fake._fill = fill_with_fee
+    real_submit = fake.submit_order
+
+    def submit(req):
+        held = sum(float(p.qty) for p in fake.positions.values())
+        if req.side.value == "sell" and float(req.qty) > held:
+            raise RuntimeError("insufficient balance for BTC")
+        return real_submit(req)
+
+    fake.submit_order = submit
+    await b.submit(
+        OrderRequest(symbol="BTC/USD", side="buy", qty=0.000136, stop_price=72_000, client_order_id="ax-f")
+    )
+    stop = next(x for x in fake.orders.values() if x.type == "stop_limit")
+    assert float(stop.qty) == 0.00013566 and b.stop_error is None
+
+
+async def test_a_rejected_broker_stop_is_reported_not_raised():
+    b, fake = broker(60_000.0)
+    real_submit = fake.submit_order
+
+    def submit(req):
+        if type(req).__name__ == "StopLimitOrderRequest":
+            raise RuntimeError("stop rejected")
+        return real_submit(req)
+
+    fake.submit_order = submit
+    o = await b.submit(
+        OrderRequest(symbol="BTC/USD", side="buy", qty=0.1, stop_price=58_000, client_order_id="ax-r")
+    )
+    assert o.status == "filled" and "was not placed" in b.stop_error
+    assert await b.poll() == []  # polling keeps working

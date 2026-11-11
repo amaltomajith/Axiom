@@ -225,3 +225,13 @@ def test_local_ollama_is_skipped_on_serverless_hosts(monkeypatch):
     get_settings.cache_clear()
     assert [p.name for p in build_chain()] == ["groq", "ollama"]
     get_settings.cache_clear()
+
+
+def test_nebius_is_an_openai_compatible_provider(monkeypatch):
+    monkeypatch.setenv("LLM_CHAIN", "nebius,groq")
+    monkeypatch.setenv("NEBIUS_API_KEY", "n")
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    get_settings.cache_clear()
+    [p] = build_chain()
+    assert (p.name, p.base_url, p.api_key) == ("nebius", "https://api.tokenfactory.nebius.com/v1", "n")
+    get_settings.cache_clear()

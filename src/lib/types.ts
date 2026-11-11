@@ -370,6 +370,7 @@ export interface TraderStatus {
   heartbeat_age_seconds?: number | null;
   failures?: number;
   last_error?: string | null;
+  broker_warning?: string | null;
   symbol_errors?: Record<string, string>;
   benchmark_value?: number | null;
   pending?: PendingEntry[];

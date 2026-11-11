@@ -8,7 +8,7 @@ risk kernel that no model can override. Before each entry the agent writes a fal
 target, exits), and every contract is graded when it closes. Those grades decide how much freedom it gets.
 
 It runs on a **free stack**: free LLM tiers (Groq, Gemini, OpenRouter, Cerebras) with a fallback chain, or a local
-Ollama model, plus Alpaca's free paper account and data.
+Ollama model, plus Alpaca's free paper account and data. Nebius Token Factory credits work too (`NEBIUS_API_KEY`).
 
 > Paper only. `TradingClient(..., paper=True)` is hard-coded and no setting enables real money. Not financial advice.
 

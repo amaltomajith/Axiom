@@ -35,12 +35,14 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
     openrouter_api_key: str | None = None
     cerebras_api_key: str | None = None
+    nebius_api_key: str | None = None  # Nebius Token Factory (paid credits, not a free tier)
     ollama_base_url: str = "http://localhost:11434/v1"
     # model ids change often: override via env (GROQ_MODEL=..., etc.)
     groq_model: str = "llama-3.3-70b-versatile"
     gemini_model: str = "gemini-2.5-flash"
     openrouter_model: str = "nvidia/nemotron-3.5-super-vl:free"
     cerebras_model: str = "gpt-oss-120b"
+    nebius_model: str = "Qwen/Qwen3-235B-A22B-Instruct-2507"
     ollama_model: str = "qwen3:8b"
     # Qwen3 etc. burn tokens on hidden reasoning; "none" disables it on Ollama ("" leaves the model default)
     ollama_reasoning_effort: str = "none"

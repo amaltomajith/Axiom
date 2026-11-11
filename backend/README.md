@@ -84,6 +84,7 @@ Read from the environment or `backend/.env` (`axiom/config.py`). All optional. T
 |---|---|---|
 | `LLM_CHAIN` | `groq,gemini,openrouter,ollama` | Providers tried in order; ones without a key are skipped. `cerebras` is available but not in the default |
 | `GROQ_API_KEY`, `GEMINI_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY` | none | Free-tier keys. `*_MODEL` overrides each model id |
+| `NEBIUS_API_KEY` | none | Nebius Token Factory (paid credits). Default model `Qwen/Qwen3-235B-A22B-Instruct-2507`; add `nebius` to `LLM_CHAIN` |
 | `OLLAMA_MODEL` | `qwen3:8b` | The offline fallback |
 | `DATABASE_URL` | none (SQLite under `.cache/`) | Postgres for runs, theses, approvals, caps and the shared cache |
 | `AXIOM_API_TOKEN` | none | Required for writes when set. Set it before exposing the API |
