@@ -23,6 +23,11 @@ EXPECTED_TOOLS = {
     "get_forecast_cone",
     "size_position",
     "get_peer_comparison",
+    "place_paper_bracket_order",
+    "modify_stop_loss",
+    "close_paper_position",
+    "emergency_flatten_all",
+    "get_past_trade_outcomes",
 }
 
 

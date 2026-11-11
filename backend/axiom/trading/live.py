@@ -23,7 +23,7 @@ from .brain import Brain, RuleBrain
 from .broker.alpaca import AlpacaPaperBroker
 from .broker.base import Broker, BrokerError
 from .broker.sim import SimBroker
-from .contracts import ContractBook
+from .contracts import ContractBook, outcomes_text
 from .data import TIMEFRAME_SECONDS, fetch_intraday
 from .engine import KILL_FILE, Engine
 from .ledger import StoreLedger
@@ -118,6 +118,9 @@ class Trader:
             bar_seconds=bar_s, periods_per_year=periods_per_year(symbols, bar_s), kill_file=KILL_FILE,
             contracts=ContractBook(), ladder=AutonomyLadder(),
         )  # fmt: skip
+        if getattr(engine.brain, "name", "") == "desk" and engine.brain.memory is None:
+            # the desk's long-term memory: how its graded paper trades ended, by regime and strategy
+            engine.brain.memory = lambda _symbol: outcomes_text(ledger.contracts())
         if fetch is None:
             if tf == "1Day":
 

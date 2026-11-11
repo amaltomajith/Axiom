@@ -138,6 +138,78 @@ async def get_peer_comparison(
     return await services.peer_comparison(ticker, peers)
 
 
+# ------------------------------------------------------------------- paper trading (Autopilot)
+# These five act on the paper-trading Autopilot. None of them can size a trade or bypass a rule: see
+# `axiom/trading/mcp_tools.py`. The research agents' allowlists do not include them.
+
+PaperSymbol = Annotated[str, Field(description="A symbol the Autopilot watches, e.g. 'BTC/USD' or 'AAPL'")]
+
+
+@mcp.tool()
+async def place_paper_bracket_order(
+    symbol: PaperSymbol,
+    reason: Annotated[str, Field(max_length=300, description="Why this entry, in one or two sentences")],
+    strategy: Annotated[
+        str | None, Field(description="A strategy that qualified and is signalling long; best one if omitted")
+    ] = None,
+    size_fraction: Annotated[
+        float, Field(gt=0, le=1, description="Fraction of the size the risk rules allow; never more than 1")
+    ] = 1.0,
+) -> dict:
+    """Ask the paper-trading Autopilot to buy a symbol with a protective stop-loss (paper money only).
+    You cannot set the quantity, the price or the stop: the risk rules size the trade and place the stop,
+    and may block it. In Supervised mode the order waits for a human to approve it."""
+    from axiom.trading import mcp_tools
+
+    return await mcp_tools.place_order(symbol, reason, strategy, size_fraction)
+
+
+@mcp.tool()
+async def modify_stop_loss(
+    symbol: PaperSymbol,
+    stop_price: Annotated[float, Field(gt=0, description="New stop price, above the current stop")],
+) -> dict:
+    """Raise the stop-loss of an open paper position to lock in less risk. A stop can only be
+    tightened: a price at or below the current stop, or at or above the market price, is refused."""
+    from axiom.trading import mcp_tools
+
+    return await mcp_tools.modify_stop(symbol, stop_price)
+
+
+@mcp.tool()
+async def close_paper_position(
+    symbol: PaperSymbol,
+    reason: Annotated[str, Field(max_length=200, description="Why the position is being closed")],
+) -> dict:
+    """Sell the whole open paper position in one symbol and cancel its stop order. The exit is
+    written to the trade journal and its trade contract is graded."""
+    from axiom.trading import mcp_tools
+
+    return await mcp_tools.close_position(symbol, reason)
+
+
+@mcp.tool()
+async def emergency_flatten_all(
+    reason: Annotated[str, Field(max_length=200, description="Why everything is being closed")],
+) -> dict:
+    """Engage the kill switch: cancel every open order, close every paper position and stop all new
+    entries. Only a human can resume trading afterwards. Use it when something looks wrong."""
+    from axiom.trading import mcp_tools
+
+    return await mcp_tools.flatten_all(reason)
+
+
+@mcp.tool()
+async def get_past_trade_outcomes(
+    session: Annotated[str, Field(description="'live' or a replay session id such as 'replay:abc'")] = "live",
+) -> dict:
+    """How the Autopilot's graded paper trades ended, grouped by the market regime at entry and the
+    strategy: trades, wins, win rate, average result and how many ended at the stop-loss."""
+    from axiom.trading import mcp_tools
+
+    return await mcp_tools.past_outcomes(session)
+
+
 # ------------------------------------------------------------------------------ resources
 
 

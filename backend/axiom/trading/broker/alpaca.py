@@ -216,6 +216,30 @@ class AlpacaPaperBroker:
             except BrokerError:
                 pass  # already filled or cancelled; poll() reconciles
 
+    async def set_stop(self, symbol: str, stop_price: float) -> None:
+        pos = (await self.account()).positions.get(symbol)
+        if pos is None:
+            raise BrokerError(f"no {symbol} position to protect")
+        old = (self._stops.get(symbol) or {}).get("stop")
+        await self._cancel_stop(symbol)
+        qty = await self._held(symbol, pos.qty)
+        last: BrokerError | None = None
+        for attempt in range(3):  # a just-cancelled stop can hold the quantity for a moment
+            try:
+                await self._place_stop(symbol, qty, stop_price)
+                self.stop_error = None
+                return
+            except BrokerError as e:
+                last = e
+                await asyncio.sleep(0.5 * (attempt + 1))
+        if old is not None:  # put the previous stop back rather than leave the position unprotected
+            try:
+                await self._place_stop(symbol, qty, old)
+            except BrokerError as e:
+                self.stop_error = f"{symbol}: the broker stop at {old:g} could not be restored ({e})"[:300]
+                log.warning(self.stop_error)
+        raise BrokerError(f"the broker refused the new {symbol} stop at {stop_price:g}: {last}")
+
     async def poll(self) -> list[Order]:
         changed: list[Order] = []
         for cid, ours in list(self._open.items()):

@@ -209,6 +209,102 @@ class Engine:
                      ts=now or time.time(), symbol=item["intent"]["symbol"])  # fmt: skip
         self._save()
 
+    # ----------------------------------------------- requests from MCP tools
+    async def propose(self, symbol: str, *, strategy: str | None = None, size_fraction: float = 1.0,
+                      reason: str = "", now: float | None = None) -> dict:  # fmt: skip
+        """An entry asked for from outside the loop (an MCP client). It gets no shortcut: the strategy must
+        have qualified and be signalling now, the kernel sizes it, and Supervised mode queues it for a human."""
+        now = now or time.time()
+        book, r = self.books.get(symbol), self.rankings.get(symbol)
+        if book is None or r is None:
+            raise ValueError(f"{symbol} has no market data or tournament yet; is the Autopilot watching it?")
+        acct = await self.broker.account()
+        if symbol in acct.positions:
+            raise ValueError(f"{symbol} is already held; one position per symbol")
+        if any(p["intent"]["symbol"] == symbol for p in self.st["pending"]):
+            raise ValueError(f"an entry for {symbol} is already waiting for approval")
+        live = [s.strategy for s in r.qualified if float(book.signals[s.strategy][-1]) == 1.0]
+        strategy = strategy or (live[0] if live else None)
+        if strategy not in live:
+            raise ValueError(
+                f"{strategy or 'no strategy'} is not both qualified and signalling long on {symbol} "
+                f"(eligible now: {', '.join(live) or 'none'})"
+            )
+        price, atr = float(book.close[-1]), float(book.atr[-1])
+        std = next(s for s in r.qualified if s.strategy == strategy)
+        dec = Decision(
+            symbol=symbol, ts=now, action="enter_long", strategy=strategy, source="desk",
+            confidence=round(min(0.8, 0.5 + 0.05 * max(0.0, std.sharpe)), 2),
+            reason=f"Requested through an MCP order tool: {reason.strip()[:300] or 'no reason given'}",
+            expected_move_pct=round(100 * 2 * atr / price, 2) if price else None,
+            size_factor=size_fraction if size_fraction < 1.0 else None,
+        )  # fmt: skip
+        intent = OrderIntent(
+            symbol=symbol, action="enter_long", stop_price=round(price - self.cfg.stop_atr_mult * atr, 6),
+            reason=dec.reason, strategy=strategy, confidence=dec.confidence, source="desk",
+        )  # fmt: skip
+        ctx = self._ctx(symbol, price, now, acct, data_age=now - float(book.ts[-1]))
+        verdict = self.kernel.review(intent, acct, ctx)
+        if verdict.approved and dec.size_factor is not None:
+            intent.requested_qty = _scaled(verdict.qty, dec.size_factor, parse(symbol).kind)
+            verdict = self.kernel.review(intent, acct, ctx)
+        out = {"symbol": symbol, "strategy": strategy, "verdict": verdict.model_dump()}
+        if not verdict.approved:
+            self.journal("blocked", jt.blocked(intent, verdict), ts=now, symbol=symbol,
+                         facts=_vfacts(intent, verdict))  # fmt: skip
+            self._save()
+            return {**out, "status": "blocked", "reason": verdict.reason}
+        if verdict.needs_approval:
+            item = {"id": new_id("p-"), "created_at": now, "intent": intent.model_dump(),
+                    "verdict": verdict.model_dump(), "decision": dec.model_dump()}  # fmt: skip
+            self.st["pending"].append(item)
+            self.journal("proposal", jt.proposal(intent, verdict), ts=now, symbol=symbol,
+                         facts=_vfacts(intent, verdict))  # fmt: skip
+            self.emit("pending", item=item)
+            self._save()
+            return {**out, "status": "pending_approval", "pending_id": item["id"]}
+        order = await self._submit_entry(intent, verdict, dec, now, acct)
+        self._save()
+        return {**out, "status": "submitted" if order.status != "rejected" else "rejected",
+                "order": order.model_dump()}  # fmt: skip
+
+    async def tighten_stop(self, symbol: str, stop_price: float, now: float | None = None) -> dict:
+        """Raise a position's stop. A stop can be moved up to lock in less risk, never down."""
+        now = now or time.time()
+        pos = (await self.broker.account()).positions.get(symbol)
+        if pos is None:
+            raise ValueError(f"no open {symbol} position")
+        old = pos.stop_price if pos.stop_price is not None else self.st["meta"].get(symbol, {}).get("stop")
+        price = (await self.broker.last_price(symbol)) or pos.market_price
+        if old is not None and stop_price <= old:
+            raise ValueError(
+                f"a stop can only be tightened: {stop_price:,.2f} is not above the current {old:,.2f}"
+            )
+        if stop_price >= price:
+            raise ValueError(f"the stop {stop_price:,.2f} must stay below the price {price:,.2f}")
+        await self.broker.set_stop(symbol, stop_price)
+        self.st["meta"].setdefault(symbol, {})["stop"] = stop_price
+        was = "nothing" if old is None else jt.money(old)
+        self.journal(
+            "note",
+            f"Tightened the {symbol} stop-loss from {was} to {jt.money(stop_price)} "
+            f"(price {jt.money(price)}). Stops only ever move up.",
+            ts=now, symbol=symbol, facts={"old_stop": old, "stop_price": stop_price, "price": price},
+        )  # fmt: skip
+        self._save()
+        self.emit("state")
+        return {"ok": True, "symbol": symbol, "old_stop": old, "stop_price": stop_price}
+
+    async def close_position(self, symbol: str, reason: str, now: float | None = None) -> dict:
+        now = now or time.time()
+        if symbol not in (await self.broker.account()).positions:
+            raise ValueError(f"no open {symbol} position")
+        order = await self._exit(symbol, reason.strip()[:200] or "closed through an MCP tool", now)
+        for o in await self.broker.poll():
+            self._on_fill(o, now)
+        self._save()
+        return {"ok": order is not None, "order": order.model_dump() if order else None}
+
     # ------------------------------------------------------------------- day
     async def roll_day(self, now: float, acct: AccountState | None = None) -> None:
         day = utc_day(now)

@@ -33,6 +33,7 @@ from axiom.pipeline import run_pipeline
 from axiom.quant.backtest import STRATEGIES
 from axiom.trading.api import build_router as build_trader_router
 from axiom.trading.service import TraderService
+from axiom.trading.service import set_current as set_current_trader
 
 
 # ----------------------------------------------------------------------------- guards
@@ -139,6 +140,7 @@ def create_app() -> FastAPI:
     store = lambda: get_store()  # noqa: E731  (resolved per call so tests can swap the DB path)
     trader_service = TraderService(store)
     app.state.trader = trader_service
+    set_current_trader(trader_service)  # the MCP trading tools act on this same service
     app.include_router(build_trader_router(trader_service))
 
     @app.exception_handler(market.DataError)

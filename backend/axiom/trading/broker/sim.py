@@ -14,6 +14,7 @@ from typing import Literal
 
 from ..models import AccountState, Bar, Order, OrderRequest, Position
 from ..symbols import parse
+from .base import BrokerError
 
 
 class SimBroker:
@@ -93,6 +94,12 @@ class SimBroker:
 
     async def submit(self, req: OrderRequest) -> Order:
         return self.submit_now(req)
+
+    async def set_stop(self, symbol: str, stop_price: float) -> None:
+        pos = self.positions.get(symbol)
+        if pos is None:
+            raise BrokerError(f"no {symbol} position to protect")
+        pos.stop_price = stop_price
 
     def submit_now(self, req: OrderRequest) -> Order:
         if req.client_order_id in self.orders:  # idempotent: a retried submit returns the first order

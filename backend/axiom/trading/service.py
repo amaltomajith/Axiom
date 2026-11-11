@@ -82,6 +82,25 @@ class Hub:
         self.queues.discard(q)
 
 
+_current: TraderService | None = None
+
+
+def current() -> TraderService:
+    """The service the MCP trading tools act on: the API's own when they share a process, otherwise a fresh
+    one over the same database (its trader is built from settings and only trades once started)."""
+    global _current
+    if _current is None:
+        from axiom.memory.store import get_store
+
+        _current = TraderService(get_store)
+    return _current
+
+
+def set_current(svc: TraderService | None) -> None:
+    global _current
+    _current = svc
+
+
 class TraderService:
     def __init__(self, store_fn, *, trader_factory=None, fetch_frames=None):
         self.store_fn = store_fn

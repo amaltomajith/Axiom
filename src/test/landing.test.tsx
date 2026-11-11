@@ -35,7 +35,7 @@ describe('landing data is real, not typed in', () => {
     const server = readFileSync(resolve(__dirname, '../../backend/axiom/mcp_server/server.py'), 'utf-8');
     const registered = [...server.matchAll(/@mcp\.tool\(\)\s+async def (\w+)\(/g)].map(m => m[1]).sort();
     expect([...MCP_TOOLS].sort()).toEqual(registered);
-    expect(registered).toHaveLength(11);
+    expect(registered).toHaveLength(16);
   });
 
   it('uses real product screenshots that exist', () => {

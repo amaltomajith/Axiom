@@ -1,5 +1,6 @@
 """Alpaca paper broker against a fake TradingClient, and the live loop (decisions per bar, watchdog, kill)."""
 
+import asyncio
 import time
 from types import SimpleNamespace
 
@@ -140,6 +141,21 @@ async def test_equity_stop_is_a_plain_stop_and_a_broker_stop_fill_reports_pnl():
     stop_fill = next(f for f in fills if f.reason.startswith("stop-loss"))
     assert stop_fill.status == "filled" and stop_fill.realized_pl == pytest.approx(-60.0)
     assert "SPY" not in b._stops
+
+
+async def test_moving_a_broker_stop_cancels_the_old_order_and_places_the_new_one():
+    b, fake = broker(60_000.0)
+    await b.submit(
+        OrderRequest(symbol="BTC/USD", side="buy", qty=0.1, stop_price=58_000, client_order_id="ax-9")
+    )
+    first = next(x for x in fake.orders.values() if x.type == "stop_limit")
+    await asyncio.sleep(0.002)  # stop order ids carry a millisecond timestamp
+    await b.set_stop("BTC/USD", 59_000.0)
+    live = [x for x in fake.orders.values() if x.type == "stop_limit" and x.status == "new"]
+    assert first.status == "canceled" and len(live) == 1 and float(live[0].stop_price) == 59_000
+    assert (await b.account()).positions["BTC/USD"].stop_price == 59_000 and b.stop_error is None
+    with pytest.raises(BrokerError):
+        await b.set_stop("ETH/USD", 10.0)
 
 
 async def test_submit_is_idempotent_across_restarts():

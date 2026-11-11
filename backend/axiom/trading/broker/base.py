@@ -26,6 +26,10 @@ class Broker(Protocol):
         """Sell the whole position and cancel its open orders. None if there is nothing to close."""
         ...
 
+    async def set_stop(self, symbol: str, stop_price: float) -> None:
+        """Replace the protective stop held for an open position. The engine only ever asks to raise it."""
+        ...
+
     async def flatten_all(self, reason: str = "") -> list[Order]:
         """Cancel every open order and close every position."""
         ...

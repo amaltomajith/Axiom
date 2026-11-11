@@ -203,6 +203,43 @@ def _grade_text(c: dict, r: dict) -> str:
     )
 
 
+# ------------------------------------------------------------ outcome memory
+def outcomes_by_regime(contracts: list[dict]) -> list[dict[str, Any]]:
+    """How graded trades ended, grouped by the market regime at entry and the strategy: the desk's long-term
+    memory. Shadow contracts (entries the agent was not allowed to take) count, and are reported apart."""
+    groups: dict[tuple[str, str], dict[str, Any]] = {}
+    for c in contracts:
+        if c["status"] != "graded" or not c.get("result"):
+            continue
+        key = (c.get("regime_at_entry") or "unknown", c.get("strategy") or "unknown")
+        g = groups.setdefault(key, {"n": 0, "wins": 0, "ret": 0.0, "stops": 0, "shadow": 0, "last_ts": 0.0})
+        r = c["result"]
+        g["n"] += 1
+        g["wins"] += int(r["outcome"])
+        g["ret"] += float(r.get("return_pct") or 0.0)
+        g["stops"] += int(str(r.get("reason") or "").startswith("stop"))
+        g["shadow"] += int(bool(c.get("shadow")))
+        g["last_ts"] = max(g["last_ts"], float(r.get("ts") or 0.0))
+    return [
+        {
+            "regime": regime, "strategy": strategy, "trades": g["n"], "wins": g["wins"],
+            "win_rate": round(g["wins"] / g["n"], 3), "avg_return_pct": round(g["ret"] / g["n"], 2),
+            "stop_outs": g["stops"], "shadow": g["shadow"], "last_ts": g["last_ts"],
+        }
+        for (regime, strategy), g in sorted(groups.items(), key=lambda kv: (-kv[1]["n"], kv[0]))
+    ]  # fmt: skip
+
+
+def outcomes_text(contracts: list[dict], *, limit: int = 6) -> str:
+    """The same memory as a few plain lines, small enough to hand to the Synthesizer and the Critic."""
+    rows = outcomes_by_regime(contracts)[:limit]
+    return "\n".join(
+        f"- {r['strategy']} (market regime at entry: {r['regime']}): {r['trades']} graded paper trade(s), {r['wins']} "
+        f"profitable, average result {r['avg_return_pct']:+.2f}%, {r['stop_outs']} ended at the stop-loss."
+        for r in rows
+    )
+
+
 # ---------------------------------------------------------------- calibration
 def calibration(contracts: list[dict], *, last: int | None = None) -> dict[str, Any]:
     """Brier score, win rate and reliability buckets over graded contracts (newest `last` if given)."""
