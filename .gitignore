@@ -28,6 +28,8 @@ dist-ssr
 .env.*
 !.env.example
 !.env.data.example
+# Public build setting (no secrets): where the deployed cockpit finds the always-on Autopilot.
+!.env.production
 
 # Python backend
 __pycache__/

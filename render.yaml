@@ -1,0 +1,11 @@
+# Render Blueprint: the always-on Autopilot API (paper only). Secrets are added in the dashboard
+# (Environment, "Add from .env"); see docs/deployment.md section 0.
+services:
+  - type: web
+    name: axiom-autopilot
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/render/Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeploy: true

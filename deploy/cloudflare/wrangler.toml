@@ -4,7 +4,12 @@ main = "worker.js"
 compatibility_date = "2026-10-01"
 workers_dev = true
 
-# Holds one key, "origin": the current quick tunnel URL, written by scripts/live-demo.sh.
+# Keeps the free Render service awake: the Worker calls KV "ping" every 10 minutes (Render sleeps after 15).
+[triggers]
+crons = ["*/10 * * * *"]
+
+# "origin": where visitors go (the Vercel cockpit, or the quick tunnel URL written by scripts/live-demo.sh).
+# "ping": the Render API to keep awake.
 [[kv_namespaces]]
 binding = "ORIGIN"
 id = "b6c6a2a209eb4ee885deafc57b9c5a8a"

@@ -27,6 +27,7 @@ SYMBOLS="${SYMBOLS:-BTC/USD,ETH/USD}"
 URL_FILE="$CACHE/public-url.txt"
 FIXED_URL="${FIXED_URL:-https://axiom-autopilot.work-amaltom.workers.dev}"
 KV_NAMESPACE="${KV_NAMESPACE:-b6c6a2a209eb4ee885deafc57b9c5a8a}"
+HOME_URL="${HOME_URL:-https://axiom-ten-henna.vercel.app}"   # where the fixed link goes when the laptop is off
 mkdir -p "$CACHE"
 
 find_cloudflared() {
@@ -38,7 +39,7 @@ find_cloudflared() {
   done
 }
 
-publish_origin() {  # point the fixed link at $1 (or "none" for offline); retried, never blocks the tunnel
+publish_origin() {  # point the fixed link at $1 ("none" shows offline); retried, never blocks the tunnel
   ( cd "$ROOT/deploy/cloudflare" || exit 0
     for i in 1 2 3 4 5; do
       if WRANGLER_SEND_METRICS=false timeout 120 npx --yes wrangler@4 kv key put origin "$1" \
@@ -109,6 +110,11 @@ case "${1:-}" in
       echo "cloudflared-windows-amd64.exe from github.com/cloudflare/cloudflared/releases as %LOCALAPPDATA%\\cloudflared\\cloudflared.exe"
       exit 1; }
     [ -f "$ROOT/dist/index.html" ] || { echo "Build the cockpit first: npm run build:selfhost"; exit 1; }
+    if [ -z "${FORCE:-}" ] && curl -s -m 15 -o /dev/null -w "%{redirect_url}" "$FIXED_URL/" | grep -q 'vercel\.app'; then
+      echo "The fixed link points at the deployed site, whose Render service already trades this paper account."
+      echo "Suspend that service first (two agents on one account would fight), then run with FORCE=1."
+      exit 1
+    fi
     rm -f "$CACHE/live-demo.stop"
     running "$CACHE/live-demo-backend.pid" && echo "API loop already running" || detach _backend
     running "$CACHE/live-demo-tunnel.pid" && echo "tunnel loop already running" || detach _tunnel
@@ -133,7 +139,7 @@ case "${1:-}" in
     for pid in $(netstat -ano | grep -E "127\.0\.0\.1:$PORT .*LISTENING" | awk '{print $NF}' | sort -u); do taskkill //F //T //PID "$pid" >/dev/null 2>&1; done
     taskkill //F //IM cloudflared.exe >/dev/null 2>&1
     rm -f "$URL_FILE"
-    publish_origin none   # the fixed link now shows "offline" instead of a dead tunnel
+    publish_origin "$HOME_URL"   # the fixed link goes back to the always-on site, not a dead tunnel
     echo "stopped"
     ;;
   *) sed -n '2,19p' "$0"; exit 1 ;;

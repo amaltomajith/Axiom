@@ -1,6 +1,7 @@
-// A fixed public address for the Autopilot, which runs on a laptop behind a Cloudflare quick tunnel whose URL
-// changes on every restart. scripts/live-demo.sh writes the current tunnel URL to KV under "origin"; this Worker
-// sends each visitor there with a redirect, after checking the laptop answers.
+// A fixed public address for the Autopilot. KV key "origin" is where visitors go: the deployed cockpit on Vercel, or
+// a laptop behind a Cloudflare quick tunnel whose URL changes on every restart (scripts/live-demo.sh writes it).
+// This Worker sends each visitor there with a redirect, after checking it answers. KV key "ping" is the always-on
+// Autopilot API on Render's free plan, which sleeps after 15 idle minutes: a cron trigger calls it every 10.
 //
 // It redirects instead of proxying so a cockpit tab that polls every few seconds talks to the tunnel directly
 // and does not use up the free plan's daily Worker requests (one request per visit, not one per poll).
@@ -22,19 +23,26 @@ h1{font-size:22px;margin:0 0 8px}p{color:var(--muted);margin:8px 0}
     { status: 503, headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store', 'retry-after': '20' } },
   );
 
+const allowed = origin => !!origin && /^https:\/\/[a-z0-9-]+\.(trycloudflare\.com|vercel\.app|onrender\.com)$/.test(origin);
+
 export default {
+  async scheduled(_event, env, ctx) {
+    const origin = await env.ORIGIN.get('ping');
+    if (allowed(origin)) ctx.waitUntil(fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(20000) }).catch(() => null));
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/favicon.ico') return new Response(null, { status: 204 });
     const origin = await env.ORIGIN.get('origin', { cacheTtl: 60 });
-    if (!origin || !/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/.test(origin)) {
-      return PAGE('Axiom Autopilot is offline', '<p>The laptop that runs the paper-trading agent is not connected right now.</p><p>This page checks again every 20 seconds.</p>');
+    if (!allowed(origin)) {
+      return PAGE('Axiom Autopilot is offline', '<p>The paper-trading agent is not connected right now.</p><p>This page checks again every 20 seconds.</p>');
     }
     try {
       const health = await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(6000), cf: { cacheTtl: 0 } });
       if (!health.ok) throw new Error(`health ${health.status}`);
     } catch {
-      return PAGE('Axiom Autopilot is reconnecting', '<p>The laptop is restarting its connection. This usually takes under a minute.</p><p>This page checks again every 20 seconds.</p>');
+      return PAGE('Axiom Autopilot is reconnecting', '<p>The agent is restarting or waking up. This usually takes under a minute.</p><p>This page checks again every 20 seconds.</p>');
     }
     const path = url.pathname === '/' ? '/app' : url.pathname;
     return Response.redirect(`${origin}${path}${url.search}`, 302);

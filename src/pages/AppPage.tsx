@@ -15,7 +15,7 @@ import { QuoteStrip } from '@/components/shell/QuoteStrip';
 import { Badge } from '@/components/ui/badge';
 import { useAgentStream } from '@/hooks/useAgentStream';
 import { useToast } from '@/hooks/use-toast';
-import { api, ApiError, clearCache, PUBLIC_DEMO } from '@/lib/api';
+import { api, ApiError, clearCache, REMOTE_API } from '@/lib/api';
 import { pushRecent } from '@/lib/recent';
 import { cn } from '@/lib/utils';
 
@@ -137,8 +137,8 @@ export default function AppPage() {
       <main id="main" className="mx-auto max-w-[1320px] px-4 pb-24 sm:px-6">
         {offline && (
           <div role="alert" className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 px-4 py-3 text-small text-destructive">
-            {PUBLIC_DEMO
-              ? 'The demo laptop is not reachable right now. It reconnects on its own: reload in a minute, or open the Axiom link you were given again.'
+            {REMOTE_API
+              ? 'The Axiom service is not reachable right now. It reconnects on its own: reload in a minute.'
               : 'The backend is not reachable, so there is no market data or analysis. Open the status menu for how to start it.'}
           </div>
         )}

@@ -1,8 +1,33 @@
 # Deploying Axiom on free tiers
 
-Two shapes. **The Autopilot demo runs on a laptop** with a public URL, because the trading loop needs a long-lived
-process (section 0). The research terminal can also be deployed to serverless free tiers (sections 1 to 7); there the
-trader does not run, since `TRADER_ENABLED` is ignored on serverless.
+The trading loop needs a long-lived process, so **the Autopilot runs on a free Render web service** (section A), while
+the research terminal stays on serverless free tiers (sections 1 to 7; `TRADER_ENABLED` is ignored there). The same
+Autopilot can also run on a laptop with a public URL (section 0), but never both at once on one paper account.
+
+## A. Always on: Render (free) for the Autopilot, Vercel for the cockpit
+
+- `render.yaml` (repo root) is a Blueprint for one free Docker web service, `axiom-autopilot`, built from
+  `deploy/render/Dockerfile`. It runs the API with the trader on: Alpaca **paper**, the four-agent desk, BTC/USD and
+  ETH/USD, Supervised, guest actions on, CORS open to the Vercel cockpit only.
+- The cockpit on Vercel calls it for `/api/trader/*` through `VITE_TRADER_API_BASE_URL` in `.env.production` (a public
+  URL, not a secret). Research calls keep going to the Vercel API.
+- **Sleep:** a free service sleeps after 15 idle minutes. The Cloudflare Worker in `deploy/cloudflare` has a cron
+  trigger that calls KV key `ping` (the Render URL) every 10 minutes, so it stays up; 750 free hours a month covers
+  one service around the clock.
+- **Storage:** the free disk is wiped on each deploy or restart. `deploy/render/dbsync.py` restores the SQLite store
+  from the private Hugging Face dataset `DB_REPO` on boot, saves a snapshot every 5 minutes when it changed, and saves
+  once more on shutdown. It never uses the production `DATABASE_URL`.
+
+Set it up once:
+
+1. `hf auth login` with a write token (the store backup uses it), then create the dataset once:
+   `python -c "from huggingface_hub import HfApi; HfApi().create_repo('<you>/axiom-autopilot-db', repo_type='dataset', private=True, exist_ok=True)"`.
+2. On render.com: New, Blueprint, pick this GitHub repo and branch `main`, Apply.
+3. In the service, Environment, "Add from .env": paste the output of
+   `python deploy/render/env_for_render.py | clip` (run it yourself; it copies only names ending in `API_KEY`,
+   `SECRET_KEY` or `TOKEN`, plus your HF token, and prints only the names).
+4. If Render named the service URL something other than `https://axiom-autopilot.onrender.com`, update
+   `.env.production`, then `cd deploy/cloudflare && npx wrangler@4 kv key put ping <url> --namespace-id <id> --remote`.
 
 ## 0. Autopilot demo: one laptop, one port, a free public URL
 
