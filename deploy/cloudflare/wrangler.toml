@@ -1,0 +1,10 @@
+# The fixed public address for the laptop-hosted Autopilot. Deploy: npx wrangler@4 deploy (from this folder).
+name = "axiom-autopilot"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = true
+
+# Holds one key, "origin": the current quick tunnel URL, written by scripts/live-demo.sh.
+[[kv_namespaces]]
+binding = "ORIGIN"
+id = "b6c6a2a209eb4ee885deafc57b9c5a8a"

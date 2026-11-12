@@ -110,7 +110,9 @@ ETH/USD and equities run in the Time Machine.
 ## Demo on one port with a public URL
 
 `scripts/live-demo.sh start` does all of it (build the cockpit first with `npm run build:selfhost`): the API and
-cockpit on port 8000 plus a free Cloudflare quick tunnel, each restarted if it dies, and it prints the public URL.
+cockpit on port 8000 plus a free Cloudflare quick tunnel, each restarted if it dies, keeps the laptop from sleeping,
+and points the fixed link https://axiom-autopilot.work-amaltom.workers.dev (a free Worker in `deploy/cloudflare/`)
+at the current tunnel.
 Visitors can watch everything, open every review, play the three scenarios and press Review now; approvals and the
 kill switch need the token. See [docs/deployment.md](docs/deployment.md). By hand:
 

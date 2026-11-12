@@ -32,6 +32,9 @@ import type {
 export const API_BASE: string = import.meta.env.MODE === 'selfhost' ? '' : ((import.meta.env.VITE_API_BASE_URL as string | undefined) ?? 'http://localhost:8000');
 const TOKEN_KEY = 'axiom_token';
 
+/** True when this bundle is served by the API itself to a visitor on another machine (the public demo link). */
+export const PUBLIC_DEMO: boolean = API_BASE === '' && typeof window !== 'undefined' && !['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname);
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -82,7 +85,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: { 'Content-Type': 'application/json', ...authHeaders(), ...(init?.headers ?? {}) },
     });
   } catch {
-    throw new ApiError(`Cannot reach the Axiom backend at ${API_BASE || window.location.origin}. Is it running?`, 0);
+    throw new ApiError(
+      PUBLIC_DEMO
+        ? 'The demo laptop is reconnecting. Reload in a minute, or open the Axiom link you were given again.'
+        : `Cannot reach the Axiom backend at ${API_BASE || window.location.origin}. Is it running?`,
+      0,
+    );
   }
   if (!res.ok) {
     let msg = res.statusText;

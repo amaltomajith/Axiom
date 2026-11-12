@@ -49,3 +49,6 @@ research_notes/
 
 # Autopilot kill switch file (python -m axiom.trading kill)
 backend/KILL
+
+# wrangler build scratch (deploy/cloudflare)
+.wrangler/

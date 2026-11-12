@@ -10,16 +10,27 @@ The short way (Git Bash, from the repo root):
 
 ```bash
 npm run build:selfhost
-scripts/live-demo.sh start      # API + cockpit on :8000 and a quick tunnel, each in a detached restart loop
-scripts/live-demo.sh url        # the public URL; it changes whenever the tunnel restarts
-scripts/live-demo.sh status     # loops, storage (must say sqlite), and the URL
+scripts/live-demo.sh start      # API + cockpit on :8000, a quick tunnel and keep-awake, each detached
+scripts/live-demo.sh url        # the tunnel URL; it changes whenever the tunnel restarts
+scripts/live-demo.sh status     # loops, storage (must say sqlite), the tunnel URL and the fixed link
 scripts/live-demo.sh stop
 ```
 
 It runs `TRADER_BROKER=alpaca`, `TRADER_BRAIN=desk`, BTC/USD and ETH/USD, Supervised, with `TRADER_GUEST_ACTIONS=true`,
 and forces `DATABASE_URL` empty so the demo never touches a production database named in `backend/.env`. Keys and
 `AXIOM_API_TOKEN` come from `backend/.env`. Logs: `backend/.cache/autopilot-live.log` and `backend/.cache/tunnel.log`.
-Keep the laptop awake and plugged in: sleep stops both.
+
+**The fixed link** is `https://axiom-autopilot.work-amaltom.workers.dev`, a free Cloudflare Worker in
+`deploy/cloudflare/`. Every time the tunnel starts, the script writes the new tunnel URL to the Worker's KV store, and
+the Worker sends each visitor there with a redirect after checking `/api/health` answers. If the laptop is off it
+shows "offline" and checks again every 20 seconds; `stop` sets it to offline on purpose. It redirects instead of
+proxying, so a polling cockpit uses one Worker request per visit and stays far inside the free 100,000 a day. To set
+it up on another account: `cd deploy/cloudflare`, `npx wrangler@4 login`, `npx wrangler@4 kv namespace create ORIGIN`,
+put the id in `wrangler.toml`, `npx wrangler@4 deploy`, and pass `FIXED_URL` and `KV_NAMESPACE` to the script.
+
+**Sleep.** While the demo runs, a helper process asks Windows not to sleep (the `SetThreadExecutionState` call; no
+setting is changed and it ends with `stop`). Closing the lid can still sleep the laptop, so keep it open and plugged
+in, or set "When I close the lid" to "Do nothing" for "Plugged in".
 
 The same by hand:
 
@@ -45,10 +56,11 @@ What a visitor gets, and does not:
   most), so neither touches the broker. Kill, resume, approvals, autonomy, the red team and custom replays still need
   the token. Give the token only to people who should be able to approve trades or press the kill switch.
 - **No server-sent events.** Cloudflare documents that quick tunnels do not support SSE. The cockpit notices the
-  stream is down and polls the live panels every 5 seconds instead. For the smoothest demo, present from
-  `http://localhost:8000` and share the tunnel URL for judges to follow along.
-- Quick tunnels have no uptime guarantee, a 200 in-flight request limit, and a new hostname each time. For a fixed
-  URL, create a named Cloudflare Tunnel (needs a free account and a domain).
+  stream is down and polls the live panels every 5 seconds instead, and stops polling while its tab is hidden. For
+  the smoothest demo, present from `http://localhost:8000` and share the fixed link for judges to follow along.
+- Quick tunnels have no uptime guarantee, a 200 in-flight request limit, and a new hostname each time (the fixed
+  link hides that). A named Cloudflare Tunnel on a domain you own in Cloudflare would remove the redirect and bring
+  back SSE.
 
 Before the demo:
 

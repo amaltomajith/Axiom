@@ -41,7 +41,10 @@ export function useTraderStream(session: string): boolean {
   // No stream (for example behind a Cloudflare quick tunnel, which does not carry SSE): poll the live parts faster.
   useEffect(() => {
     if (connected) return;
-    const id = window.setInterval(() => qc.invalidateQueries({ predicate: q => q.queryKey[0] === TRADER_KEY && LIVE_KEYS.has(String(q.queryKey[1])) }), 5_000);
+    const id = window.setInterval(() => {
+      if (document.visibilityState === 'hidden') return; // a background tab does not need to poll
+      qc.invalidateQueries({ predicate: q => q.queryKey[0] === TRADER_KEY && LIVE_KEYS.has(String(q.queryKey[1])) });
+    }, 5_000);
     return () => window.clearInterval(id);
   }, [connected, qc]);
 
